@@ -10,6 +10,8 @@ import Dashboard from "./pages/Dashboard";
 import Adopt from "./pages/Adopt";
 import PetDetail from "./pages/PetDetail";
 import Shop from "./pages/Shop";
+import Community from "./pages/Community";
+import Leaderboard from "./pages/Leaderboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +30,8 @@ const App = () => (
             <Route path="/adopt" element={<Adopt />} />
             <Route path="/pet/:id" element={<PetDetail />} />
             <Route path="/shop" element={<Shop />} />
+            <Route path="/community" element={<Community />} />
+            <Route path="/leaderboard" element={<Leaderboard />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
