@@ -1,0 +1,76 @@
+import { useState } from "react";
+import { useAuth } from "./AuthProvider";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { toast } from "sonner";
+
+export const SignInForm = ({ onToggle }: { onToggle: () => void }) => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const { signIn } = useAuth();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      await signIn(email, password);
+      toast.success("Welcome back!");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to sign in");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Card className="w-full max-w-md shadow-card">
+      <CardHeader>
+        <CardTitle className="text-2xl text-gradient">Welcome Back</CardTitle>
+        <CardDescription>Sign in to continue your adventure</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              placeholder="you@example.com"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              placeholder="••••••••"
+            />
+          </div>
+          <Button type="submit" className="w-full shadow-button" disabled={loading}>
+            {loading ? "Signing in..." : "Sign In"}
+          </Button>
+          <p className="text-center text-sm text-muted-foreground">
+            Don't have an account?{" "}
+            <button
+              type="button"
+              onClick={onToggle}
+              className="text-primary hover:underline font-medium"
+            >
+              Sign Up
+            </button>
+          </p>
+        </form>
+      </CardContent>
+    </Card>
+  );
+};
