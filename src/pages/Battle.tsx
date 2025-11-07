@@ -5,9 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Sword, Shield, Zap } from "lucide-react";
+import { Sword, Shield, Zap, Cloud, Flame, Droplet, Mountain, Wind } from "lucide-react";
 import { Navbar } from "@/components/ui/navbar";
+import { Footer } from "@/components/ui/footer";
 
 interface Skill {
   name: string;
@@ -27,12 +29,17 @@ interface Pet {
   skills: Skill[];
 }
 
+type StatusEffect = "burn" | "freeze" | "paralysis" | "poison" | null;
+type Weather = "sunny" | "rainy" | "windy" | "rocky" | "clear";
+
 interface BattlePet extends Pet {
   currentHealth: number;
   maxHealth: number;
   attack: number;
   defense: number;
   speed: number;
+  statusEffect: StatusEffect;
+  statusTurns: number;
 }
 
 const Battle = () => {
@@ -44,7 +51,9 @@ const Battle = () => {
   const [battleLog, setBattleLog] = useState<string[]>([]);
   const [inBattle, setInBattle] = useState(false);
   const [allPets, setAllPets] = useState<Pet[]>([]);
-  const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
+  const [weather, setWeather] = useState<Weather>("clear");
+  const [comboCount, setComboCount] = useState(0);
+  const [lastSkillElement, setLastSkillElement] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -88,9 +97,20 @@ const Battle = () => {
       water: { fire: 2, earth: 0.5, air: 1, light: 1, water: 1 },
       earth: { water: 2, air: 0.5, fire: 1, light: 1, earth: 1 },
       air: { earth: 2, fire: 0.5, water: 1, light: 1, air: 1 },
-      light: { fire: 1, water: 1, earth: 1, air: 1, light: 1 },
+      light: { fire: 1.2, water: 1.2, earth: 1.2, air: 1.2, light: 1 },
     };
     return effectiveness[attackElement]?.[defenseElement] || 1;
+  };
+
+  const getWeatherBonus = (element: string, currentWeather: Weather): number => {
+    const bonuses: { [key: string]: { [key in Weather]: number } } = {
+      fire: { sunny: 1.5, rainy: 0.7, windy: 1, rocky: 1, clear: 1 },
+      water: { sunny: 0.7, rainy: 1.5, windy: 1, rocky: 1, clear: 1 },
+      air: { sunny: 1, rainy: 1, windy: 1.5, rocky: 0.7, clear: 1 },
+      earth: { sunny: 1, rainy: 1, windy: 0.7, rocky: 1.5, clear: 1 },
+      light: { sunny: 1.3, rainy: 1, windy: 1, rocky: 1, clear: 1 },
+    };
+    return bonuses[element]?.[currentWeather] || 1;
   };
 
   const calculateStats = (pet: Pet): BattlePet => {
@@ -102,7 +122,14 @@ const Battle = () => {
       attack: 10 + pet.level * 3,
       defense: 5 + pet.level * 2,
       speed: 8 + pet.level * 2,
+      statusEffect: null,
+      statusTurns: 0,
     };
+  };
+
+  const randomWeather = (): Weather => {
+    const weathers: Weather[] = ["sunny", "rainy", "windy", "rocky", "clear"];
+    return weathers[Math.floor(Math.random() * weathers.length)];
   };
 
   const startAIBattle = () => {
@@ -132,9 +159,16 @@ const Battle = () => {
       skills: [],
     });
 
+    const newWeather = randomWeather();
+    setWeather(newWeather);
     setOpponent(aiPet);
     setInBattle(true);
-    setBattleLog([`Battle started against ${aiPet.name}!`]);
+    setComboCount(0);
+    setLastSkillElement(null);
+    setBattleLog([
+      `Battle started against ${aiPet.name}!`,
+      `Weather: ${newWeather.charAt(0).toUpperCase() + newWeather.slice(1)}`
+    ]);
   };
 
   const startPvPBattle = (pet: Pet) => {
@@ -148,58 +182,266 @@ const Battle = () => {
     }
 
     const opponentPet = calculateStats(pet);
+    const newWeather = randomWeather();
+    setWeather(newWeather);
     setOpponent(opponentPet);
     setInBattle(true);
-    setBattleLog([`Battle started against ${pet.name}!`]);
+    setComboCount(0);
+    setLastSkillElement(null);
+    setBattleLog([
+      `Battle started against ${pet.name}!`,
+      `Weather: ${newWeather.charAt(0).toUpperCase() + newWeather.slice(1)}`
+    ]);
+  };
+
+  const applyStatusEffect = (attacker: BattlePet, defender: BattlePet): { defender: BattlePet, log: string } => {
+    let log = "";
+    const chance = 0.15;
+    
+    if (Math.random() < chance && !defender.statusEffect) {
+      const statusMap: { [key: string]: StatusEffect } = {
+        fire: "burn",
+        water: "freeze",
+        air: "paralysis",
+        earth: "poison",
+      };
+      
+      const status = statusMap[attacker.element];
+      if (status) {
+        defender = { ...defender, statusEffect: status, statusTurns: 3 };
+        const statusNames = { burn: "Burned", freeze: "Frozen", paralysis: "Paralyzed", poison: "Poisoned" };
+        log = `${defender.name} was ${statusNames[status]}!`;
+      }
+    }
+    
+    return { defender, log };
+  };
+
+  const processStatusEffect = (pet: BattlePet): { pet: BattlePet, damage: number, log: string } => {
+    if (!pet.statusEffect || pet.statusTurns <= 0) {
+      return { pet: { ...pet, statusEffect: null, statusTurns: 0 }, damage: 0, log: "" };
+    }
+
+    let damage = 0;
+    let log = "";
+    const newTurns = pet.statusTurns - 1;
+
+    switch (pet.statusEffect) {
+      case "burn":
+        damage = Math.floor(pet.maxHealth * 0.08);
+        log = `${pet.name} took ${damage} burn damage!`;
+        break;
+      case "poison":
+        damage = Math.floor(pet.maxHealth * 0.06);
+        log = `${pet.name} took ${damage} poison damage!`;
+        break;
+      case "freeze":
+        log = `${pet.name} is frozen and can't attack!`;
+        break;
+      case "paralysis":
+        if (Math.random() < 0.25) {
+          log = `${pet.name} is paralyzed and can't move!`;
+        }
+        break;
+    }
+
+    const newHealth = Math.max(0, pet.currentHealth - damage);
+    const updatedPet = {
+      ...pet,
+      currentHealth: newHealth,
+      statusTurns: newTurns,
+      statusEffect: newTurns > 0 ? pet.statusEffect : null
+    };
+
+    return { pet: updatedPet, damage, log };
   };
 
   const attack = (skill?: Skill) => {
     if (!selectedPet || !opponent) return;
 
+    // Check if frozen
+    if (selectedPet.statusEffect === "freeze") {
+      const statusResult = processStatusEffect(selectedPet);
+      setSelectedPet(statusResult.pet);
+      setBattleLog((prev) => [...prev, statusResult.log]);
+      
+      setTimeout(() => {
+        opponentTurn();
+      }, 1000);
+      return;
+    }
+
+    // Check if paralyzed
+    if (selectedPet.statusEffect === "paralysis" && Math.random() < 0.25) {
+      const statusResult = processStatusEffect(selectedPet);
+      setSelectedPet(statusResult.pet);
+      setBattleLog((prev) => [...prev, statusResult.log]);
+      
+      setTimeout(() => {
+        opponentTurn();
+      }, 1000);
+      return;
+    }
+
     const skillToUse = skill || { name: "Basic Attack", power: 20, element: selectedPet.element };
+    
+    // Combo system
+    let comboBonus = 1;
+    if (skill && lastSkillElement === skill.element) {
+      setComboCount(prev => prev + 1);
+      comboBonus = 1 + (comboCount * 0.15);
+    } else {
+      setComboCount(0);
+    }
+    setLastSkillElement(skill?.element || null);
+
+    // Calculate dodge chance
+    const speedDiff = selectedPet.speed - opponent.speed;
+    const dodgeChance = Math.max(0, Math.min(0.3, speedDiff * 0.02));
+    
+    if (Math.random() < dodgeChance) {
+      setBattleLog((prev) => [...prev, `${opponent.name} dodged the attack!`]);
+      setTimeout(() => opponentTurn(), 1000);
+      return;
+    }
+
+    // Calculate critical hit
+    const critChance = 0.15 + (selectedPet.speed * 0.001);
+    const isCrit = Math.random() < critChance;
+    const critMultiplier = isCrit ? 1.5 : 1;
+
     const baseDamage = skill ? skillToUse.power : selectedPet.attack;
     const typeMultiplier = getTypeEffectiveness(skillToUse.element, opponent.element);
+    const weatherMultiplier = getWeatherBonus(skillToUse.element, weather);
     const randomFactor = 0.85 + Math.random() * 0.3;
-    const damage = Math.max(5, Math.floor((baseDamage - opponent.defense / 2) * typeMultiplier * randomFactor));
+    const damage = Math.max(5, Math.floor(
+      (baseDamage - opponent.defense / 2) * 
+      typeMultiplier * 
+      weatherMultiplier * 
+      critMultiplier * 
+      comboBonus * 
+      randomFactor
+    ));
     
-    const newOpponentHealth = Math.max(0, opponent.currentHealth - damage);
+    let newOpponentHealth = Math.max(0, opponent.currentHealth - damage);
     
-    let effectivenessText = "";
-    if (typeMultiplier > 1) effectivenessText = " It's super effective!";
-    if (typeMultiplier < 1) effectivenessText = " It's not very effective...";
+    let messages = [];
+    messages.push(`${selectedPet.name} used ${skillToUse.name}! Dealt ${damage} damage!`);
     
-    setBattleLog((prev) => [...prev, `${selectedPet.name} used ${skillToUse.name}! Dealt ${damage} damage!${effectivenessText}`]);
-    setOpponent({ ...opponent, currentHealth: newOpponentHealth });
+    if (isCrit) messages.push("💥 Critical hit!");
+    if (typeMultiplier > 1) messages.push("✨ It's super effective!");
+    if (typeMultiplier < 1) messages.push("💨 It's not very effective...");
+    if (comboBonus > 1) messages.push(`🔥 ${comboCount + 1}x Combo!`);
+    if (weatherMultiplier > 1) messages.push("☀️ Weather boosted!");
+
+    // Apply status effect
+    const statusResult = applyStatusEffect(selectedPet, opponent);
+    let updatedOpponent = { ...statusResult.defender, currentHealth: newOpponentHealth };
+    if (statusResult.log) messages.push(statusResult.log);
+
+    setBattleLog((prev) => [...prev, ...messages]);
+    setOpponent(updatedOpponent);
 
     if (newOpponentHealth <= 0) {
       endBattle(true);
       return;
     }
 
-    // Opponent's turn
-    setTimeout(() => {
-      const opponentSkill = opponent.skills.length > 0 
-        ? opponent.skills[Math.floor(Math.random() * opponent.skills.length)]
-        : { name: "Basic Attack", power: 20, element: opponent.element };
-      
-      const opponentBaseDamage = opponent.skills.length > 0 ? opponentSkill.power : opponent.attack;
-      const opponentTypeMultiplier = getTypeEffectiveness(opponentSkill.element, selectedPet.element);
-      const opponentRandomFactor = 0.85 + Math.random() * 0.3;
-      const opponentDamage = Math.max(5, Math.floor((opponentBaseDamage - selectedPet.defense / 2) * opponentTypeMultiplier * opponentRandomFactor));
-      
-      const newPlayerHealth = Math.max(0, selectedPet.currentHealth - opponentDamage);
-      
-      let opponentEffectivenessText = "";
-      if (opponentTypeMultiplier > 1) opponentEffectivenessText = " It's super effective!";
-      if (opponentTypeMultiplier < 1) opponentEffectivenessText = " It's not very effective...";
-      
-      setBattleLog((prev) => [...prev, `${opponent.name} used ${opponentSkill.name}! Dealt ${opponentDamage} damage!${opponentEffectivenessText}`]);
-      setSelectedPet({ ...selectedPet, currentHealth: newPlayerHealth });
+    // Process player's status effect
+    const playerStatusResult = processStatusEffect(selectedPet);
+    setSelectedPet(playerStatusResult.pet);
+    if (playerStatusResult.log) {
+      setBattleLog((prev) => [...prev, playerStatusResult.log]);
+    }
+    if (playerStatusResult.pet.currentHealth <= 0) {
+      endBattle(false);
+      return;
+    }
 
-      if (newPlayerHealth <= 0) {
-        endBattle(false);
-      }
-    }, 1000);
+    setTimeout(() => opponentTurn(), 1500);
+  };
+
+  const opponentTurn = () => {
+    if (!selectedPet || !opponent) return;
+
+    // Check if frozen
+    if (opponent.statusEffect === "freeze") {
+      const statusResult = processStatusEffect(opponent);
+      setOpponent(statusResult.pet);
+      setBattleLog((prev) => [...prev, statusResult.log]);
+      return;
+    }
+
+    // Check if paralyzed
+    if (opponent.statusEffect === "paralysis" && Math.random() < 0.25) {
+      const statusResult = processStatusEffect(opponent);
+      setOpponent(statusResult.pet);
+      setBattleLog((prev) => [...prev, statusResult.log]);
+      return;
+    }
+
+    const opponentSkill = opponent.skills.length > 0 
+      ? opponent.skills[Math.floor(Math.random() * opponent.skills.length)]
+      : { name: "Basic Attack", power: 20, element: opponent.element };
+    
+    // Calculate dodge
+    const speedDiff = opponent.speed - selectedPet.speed;
+    const dodgeChance = Math.max(0, Math.min(0.3, speedDiff * 0.02));
+    
+    if (Math.random() < dodgeChance) {
+      setBattleLog((prev) => [...prev, `${selectedPet.name} dodged the attack!`]);
+      return;
+    }
+
+    // Calculate critical hit
+    const critChance = 0.15 + (opponent.speed * 0.001);
+    const isCrit = Math.random() < critChance;
+    const critMultiplier = isCrit ? 1.5 : 1;
+
+    const opponentBaseDamage = opponent.skills.length > 0 ? opponentSkill.power : opponent.attack;
+    const opponentTypeMultiplier = getTypeEffectiveness(opponentSkill.element, selectedPet.element);
+    const weatherMultiplier = getWeatherBonus(opponentSkill.element, weather);
+    const opponentRandomFactor = 0.85 + Math.random() * 0.3;
+    const opponentDamage = Math.max(5, Math.floor(
+      (opponentBaseDamage - selectedPet.defense / 2) * 
+      opponentTypeMultiplier * 
+      weatherMultiplier * 
+      critMultiplier * 
+      opponentRandomFactor
+    ));
+    
+    let newPlayerHealth = Math.max(0, selectedPet.currentHealth - opponentDamage);
+    
+    let messages = [];
+    messages.push(`${opponent.name} used ${opponentSkill.name}! Dealt ${opponentDamage} damage!`);
+    
+    if (isCrit) messages.push("💥 Critical hit!");
+    if (opponentTypeMultiplier > 1) messages.push("✨ It's super effective!");
+    if (opponentTypeMultiplier < 1) messages.push("💨 It's not very effective...");
+    if (weatherMultiplier > 1) messages.push("☀️ Weather boosted!");
+
+    // Apply status effect
+    const statusResult = applyStatusEffect(opponent, selectedPet);
+    let updatedPlayer = { ...statusResult.defender, currentHealth: newPlayerHealth };
+    if (statusResult.log) messages.push(statusResult.log);
+
+    setBattleLog((prev) => [...prev, ...messages]);
+    setSelectedPet(updatedPlayer);
+
+    if (newPlayerHealth <= 0) {
+      endBattle(false);
+      return;
+    }
+
+    // Process opponent's status effect
+    const opponentStatusResult = processStatusEffect(opponent);
+    setOpponent(opponentStatusResult.pet);
+    if (opponentStatusResult.log) {
+      setBattleLog((prev) => [...prev, opponentStatusResult.log]);
+    }
+    if (opponentStatusResult.pet.currentHealth <= 0) {
+      endBattle(true);
+    }
   };
 
   const endBattle = async (won: boolean) => {
@@ -264,29 +506,57 @@ const Battle = () => {
       setInBattle(false);
       setOpponent(null);
       setSelectedPet(null);
+      setComboCount(0);
+      setLastSkillElement(null);
       fetchMyPets();
     }, 3000);
   };
 
+  const getWeatherIcon = () => {
+    const icons = {
+      sunny: <Flame className="w-4 h-4" />,
+      rainy: <Droplet className="w-4 h-4" />,
+      windy: <Wind className="w-4 h-4" />,
+      rocky: <Mountain className="w-4 h-4" />,
+      clear: <Cloud className="w-4 h-4" />
+    };
+    return icons[weather];
+  };
+
+  const getStatusBadge = (status: StatusEffect) => {
+    if (!status) return null;
+    
+    const variants = {
+      burn: { text: "🔥 Burn", color: "destructive" as const },
+      freeze: { text: "❄️ Freeze", color: "secondary" as const },
+      paralysis: { text: "⚡ Paralysis", color: "default" as const },
+      poison: { text: "☠️ Poison", color: "destructive" as const },
+    };
+    
+    const badge = variants[status];
+    return <Badge variant={badge.color} className="text-xs">{badge.text}</Badge>;
+  };
+
   if (!user) {
     return (
-      <>
+      <div className="min-h-screen flex flex-col">
         <Navbar />
-        <div className="min-h-screen bg-gradient-soft flex items-center justify-center p-4">
+        <div className="flex-1 flex items-center justify-center p-4">
           <Card>
             <CardContent className="p-8">
               <p className="text-foreground">Please log in to battle</p>
             </CardContent>
           </Card>
         </div>
-      </>
+        <Footer />
+      </div>
     );
   }
 
   return (
-    <>
+    <div className="min-h-screen flex flex-col">
       <Navbar />
-      <div className="min-h-screen bg-gradient-soft p-4">
+      <div className="flex-1 p-4">
         <div className="max-w-6xl mx-auto pt-20">
           <h1 className="text-4xl font-bold text-center mb-8 text-gradient">Pet Battle Arena</h1>
 
@@ -319,6 +589,9 @@ const Battle = () => {
                           />
                           <h3 className="font-semibold">{pet.name}</h3>
                           <p className="text-sm text-muted-foreground">Level {pet.level}</p>
+                          <Badge variant="secondary" className="mt-2 text-xs capitalize">
+                            {pet.element}
+                          </Badge>
                         </CardContent>
                       </Card>
                     ))}
@@ -379,7 +652,13 @@ const Battle = () => {
           ) : (
             <Card>
               <CardHeader>
-                <CardTitle className="text-center">Battle in Progress!</CardTitle>
+                <div className="flex justify-between items-center">
+                  <CardTitle className="text-center flex-1">Battle in Progress!</CardTitle>
+                  <Badge variant="outline" className="flex items-center gap-1">
+                    {getWeatherIcon()}
+                    <span className="capitalize">{weather}</span>
+                  </Badge>
+                </div>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid grid-cols-2 gap-8">
@@ -389,9 +668,10 @@ const Battle = () => {
                       alt={selectedPet?.name}
                       className="w-32 h-32 mx-auto"
                     />
-                            <h3 className="font-bold">{selectedPet?.name}</h3>
+                    <h3 className="font-bold">{selectedPet?.name}</h3>
                     <p className="text-sm text-muted-foreground">Level {selectedPet?.level}</p>
-                    <p className="text-xs text-primary/80 font-semibold">{selectedPet?.element.charAt(0).toUpperCase()}{selectedPet?.element.slice(1)} Element</p>
+                    <Badge variant="secondary" className="text-xs capitalize">{selectedPet?.element}</Badge>
+                    {selectedPet?.statusEffect && getStatusBadge(selectedPet.statusEffect)}
                     <div className="space-y-1">
                       <div className="flex items-center justify-between text-xs">
                         <span>HP</span>
@@ -420,9 +700,10 @@ const Battle = () => {
                       alt={opponent?.name}
                       className="w-32 h-32 mx-auto"
                     />
-                            <h3 className="font-bold">{opponent?.name}</h3>
+                    <h3 className="font-bold">{opponent?.name}</h3>
                     <p className="text-sm text-muted-foreground">Level {opponent?.level}</p>
-                    <p className="text-xs text-primary/80 font-semibold">{opponent?.element.charAt(0).toUpperCase()}{opponent?.element.slice(1)} Element</p>
+                    <Badge variant="secondary" className="text-xs capitalize">{opponent?.element}</Badge>
+                    {opponent?.statusEffect && getStatusBadge(opponent.statusEffect)}
                     <div className="space-y-1">
                       <div className="flex items-center justify-between text-xs">
                         <span>HP</span>
@@ -445,6 +726,14 @@ const Battle = () => {
                     </div>
                   </div>
                 </div>
+
+                {comboCount > 0 && (
+                  <div className="text-center">
+                    <Badge variant="default" className="text-sm">
+                      🔥 {comboCount + 1}x Combo Active!
+                    </Badge>
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <h4 className="font-semibold text-center">Battle Log</h4>
@@ -494,7 +783,8 @@ const Battle = () => {
           )}
         </div>
       </div>
-    </>
+      <Footer />
+    </div>
   );
 };
 
