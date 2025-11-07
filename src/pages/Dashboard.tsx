@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Link, useNavigate } from "react-router-dom";
 import { Navbar } from "@/components/ui/navbar";
+import { Footer } from "@/components/ui/footer";
 import { Plus, Coins } from "lucide-react";
 import { toast } from "sonner";
 import petFluff from "@/assets/pet-fluff.png";
@@ -82,19 +83,20 @@ const Dashboard = () => {
 
   if (loading) {
     return (
-      <div>
+      <div className="min-h-screen flex flex-col">
         <Navbar />
-        <div className="flex items-center justify-center min-h-[80vh]">
+        <div className="flex-1 flex items-center justify-center">
           <p className="text-lg text-muted-foreground">Loading...</p>
         </div>
+        <Footer />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen flex flex-col">
       <Navbar />
-      <div className="container mx-auto px-4 py-8">
+      <div className="flex-1 container mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -123,7 +125,7 @@ const Dashboard = () => {
             <div className="max-w-md mx-auto">
               <h3 className="text-2xl font-bold mb-4">No Pets Yet!</h3>
               <p className="text-muted-foreground mb-6">
-                Adopt your first pet to begin your adventure in Critter Caretakers
+                Adopt your first pet to begin your adventure in Critter Club
               </p>
               <Link to="/adopt">
                 <Button size="lg" className="shadow-button">
@@ -161,6 +163,7 @@ const Dashboard = () => {
           </div>
         )}
       </div>
+      <Footer />
     </div>
   );
 };

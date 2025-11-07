@@ -16,6 +16,7 @@ import Leaderboard from "./pages/Leaderboard";
 import Chat from "./pages/Chat";
 import Battle from "./pages/Battle";
 import Settings from "./pages/Settings";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -40,6 +41,7 @@ const App = () => (
               <Route path="/chat" element={<Chat />} />
               <Route path="/battle" element={<Battle />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/profile/:userId" element={<Profile />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
