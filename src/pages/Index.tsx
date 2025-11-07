@@ -25,7 +25,7 @@ const Index = () => {
           />
           <div className="container mx-auto px-4 py-24 relative z-10 text-center">
             <h1 className="text-5xl md:text-7xl font-bold mb-6 text-gradient animate-in fade-in slide-in-from-bottom-4 duration-1000">
-              Welcome to PetVerse!
+              Welcome to Critter Caretakers!
             </h1>
             <p className="text-xl md:text-2xl text-foreground/80 mb-8 max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-100">
               Your magical world of adorable virtual pets awaits
@@ -51,7 +51,7 @@ const Index = () => {
         <section className="py-20 bg-muted/30">
           <div className="container mx-auto px-4">
             <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">
-              What Makes PetVerse Special
+              What Makes Critter Caretakers Special
             </h2>
             <div className="grid md:grid-cols-3 gap-8">
               <FeatureCard
@@ -88,7 +88,7 @@ const Index = () => {
             </div>
           </div>
           <h1 className="text-5xl md:text-6xl font-bold text-gradient">
-            Welcome to PetVerse
+            Welcome to Critter Caretakers
           </h1>
           <p className="text-xl text-muted-foreground">
             Adopt, care for, and love adorable virtual pets in this magical world. Feed them, play
