@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      battles: {
+        Row: {
+          attacker_damage_dealt: number
+          attacker_id: string
+          attacker_pet_id: string
+          completed_at: string | null
+          created_at: string
+          defender_damage_dealt: number
+          defender_id: string | null
+          defender_pet_id: string
+          id: string
+          is_ai_battle: boolean
+          rewards_experience: number
+          rewards_petpoints: number
+          status: string
+          winner_id: string | null
+        }
+        Insert: {
+          attacker_damage_dealt?: number
+          attacker_id: string
+          attacker_pet_id: string
+          completed_at?: string | null
+          created_at?: string
+          defender_damage_dealt?: number
+          defender_id?: string | null
+          defender_pet_id: string
+          id?: string
+          is_ai_battle?: boolean
+          rewards_experience?: number
+          rewards_petpoints?: number
+          status?: string
+          winner_id?: string | null
+        }
+        Update: {
+          attacker_damage_dealt?: number
+          attacker_id?: string
+          attacker_pet_id?: string
+          completed_at?: string | null
+          created_at?: string
+          defender_damage_dealt?: number
+          defender_id?: string | null
+          defender_pet_id?: string
+          id?: string
+          is_ai_battle?: boolean
+          rewards_experience?: number
+          rewards_petpoints?: number
+          status?: string
+          winner_id?: string | null
+        }
+        Relationships: []
+      }
       inventory: {
         Row: {
           created_at: string | null
@@ -48,6 +99,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          user_id: string
+          username: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: []
       }
       pets: {
         Row: {

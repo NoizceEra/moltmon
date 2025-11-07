@@ -12,6 +12,8 @@ import PetDetail from "./pages/PetDetail";
 import Shop from "./pages/Shop";
 import Community from "./pages/Community";
 import Leaderboard from "./pages/Leaderboard";
+import Chat from "./pages/Chat";
+import Battle from "./pages/Battle";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +34,8 @@ const App = () => (
             <Route path="/shop" element={<Shop />} />
             <Route path="/community" element={<Community />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
+            <Route path="/chat" element={<Chat />} />
+            <Route path="/battle" element={<Battle />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -1,7 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { Button } from "./button";
-import { Sparkles, Store, LogOut, User, Users, Trophy } from "lucide-react";
+import { Sparkles, Store, LogOut, User, Users, Trophy, MessageCircle, Swords } from "lucide-react";
 
 export const Navbar = () => {
   const { user, signOut } = useAuth();
@@ -51,6 +51,24 @@ export const Navbar = () => {
               >
                 <Trophy className="w-4 h-4 mr-2" />
                 Leaderboard
+              </Button>
+            </Link>
+            <Link to="/chat">
+              <Button
+                variant={location.pathname === "/chat" ? "default" : "ghost"}
+                size="sm"
+              >
+                <MessageCircle className="w-4 h-4 mr-2" />
+                Chat
+              </Button>
+            </Link>
+            <Link to="/battle">
+              <Button
+                variant={location.pathname === "/battle" ? "default" : "ghost"}
+                size="sm"
+              >
+                <Swords className="w-4 h-4 mr-2" />
+                Battle
               </Button>
             </Link>
             <Button variant="outline" size="sm" onClick={() => signOut()}>
