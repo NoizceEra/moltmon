@@ -128,6 +128,7 @@ export type Database = {
         Row: {
           color: string
           created_at: string | null
+          element: string
           energy: number | null
           experience: number | null
           happiness: number | null
@@ -141,12 +142,14 @@ export type Database = {
           level: number | null
           name: string
           owner_id: string
+          skills: Json | null
           species: string
           updated_at: string | null
         }
         Insert: {
           color?: string
           created_at?: string | null
+          element?: string
           energy?: number | null
           experience?: number | null
           happiness?: number | null
@@ -160,12 +163,14 @@ export type Database = {
           level?: number | null
           name: string
           owner_id: string
+          skills?: Json | null
           species: string
           updated_at?: string | null
         }
         Update: {
           color?: string
           created_at?: string | null
+          element?: string
           energy?: number | null
           experience?: number | null
           happiness?: number | null
@@ -179,6 +184,7 @@ export type Database = {
           level?: number | null
           name?: string
           owner_id?: string
+          skills?: Json | null
           species?: string
           updated_at?: string | null
         }

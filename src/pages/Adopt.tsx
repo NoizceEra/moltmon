@@ -15,11 +15,11 @@ import petTerra from "@/assets/pet-terra.png";
 import petCloud from "@/assets/pet-cloud.png";
 
 const species = [
-  { id: "fluff", name: "Fluff", image: petFluff, description: "A fluffy, loving companion" },
-  { id: "spark", name: "Spark", image: petSpark, description: "Magical and full of energy" },
-  { id: "aqua", name: "Aqua", image: petAqua, description: "Calm and peaceful water friend" },
-  { id: "terra", name: "Terra", image: petTerra, description: "Strong and dependable" },
-  { id: "cloud", name: "Cloud", image: petCloud, description: "Light and dreamy" },
+  { id: "fluff", name: "Fluff", image: petFluff, description: "A fluffy, loving companion", element: "light" },
+  { id: "spark", name: "Spark", image: petSpark, description: "Magical and full of energy", element: "fire" },
+  { id: "aqua", name: "Aqua", image: petAqua, description: "Calm and peaceful water friend", element: "water" },
+  { id: "terra", name: "Terra", image: petTerra, description: "Strong and dependable", element: "earth" },
+  { id: "cloud", name: "Cloud", image: petCloud, description: "Light and dreamy", element: "air" },
 ];
 
 const Adopt = () => {
@@ -35,11 +35,13 @@ const Adopt = () => {
 
     setLoading(true);
     try {
+      const selectedSpec = species.find(s => s.id === selectedSpecies);
       const { error } = await supabase.from("pets").insert([
         {
           owner_id: user.id,
           name: petName,
           species: selectedSpecies,
+          element: selectedSpec?.element || 'normal',
           hunger: 50,
           happiness: 50,
           health: 100,
@@ -96,6 +98,9 @@ const Adopt = () => {
                       className="w-full h-32 object-contain mb-2"
                     />
                     <h3 className="font-bold text-center mb-1">{spec.name}</h3>
+                    <p className="text-xs text-primary/80 text-center font-semibold mb-1">
+                      {spec.element.charAt(0).toUpperCase() + spec.element.slice(1)} Element
+                    </p>
                     <p className="text-xs text-muted-foreground text-center">
                       {spec.description}
                     </p>

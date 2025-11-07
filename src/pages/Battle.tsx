@@ -9,6 +9,12 @@ import { useToast } from "@/hooks/use-toast";
 import { Sword, Shield, Zap } from "lucide-react";
 import { Navbar } from "@/components/ui/navbar";
 
+interface Skill {
+  name: string;
+  power: number;
+  element: string;
+}
+
 interface Pet {
   id: string;
   name: string;
@@ -17,6 +23,8 @@ interface Pet {
   health: number;
   energy: number;
   color: string;
+  element: string;
+  skills: Skill[];
 }
 
 interface BattlePet extends Pet {
@@ -24,6 +32,7 @@ interface BattlePet extends Pet {
   maxHealth: number;
   attack: number;
   defense: number;
+  speed: number;
 }
 
 const Battle = () => {
@@ -35,6 +44,7 @@ const Battle = () => {
   const [battleLog, setBattleLog] = useState<string[]>([]);
   const [inBattle, setInBattle] = useState(false);
   const [allPets, setAllPets] = useState<Pet[]>([]);
+  const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -48,7 +58,13 @@ const Battle = () => {
       .from("pets")
       .select("*")
       .eq("owner_id", user?.id);
-    if (data) setMyPets(data);
+    if (data) {
+      const parsedPets = data.map(pet => ({
+        ...pet,
+        skills: (pet.skills as any) || []
+      }));
+      setMyPets(parsedPets as Pet[]);
+    }
   };
 
   const fetchAllPets = async () => {
@@ -57,7 +73,24 @@ const Battle = () => {
       .select("*")
       .neq("owner_id", user?.id)
       .limit(20);
-    if (data) setAllPets(data);
+    if (data) {
+      const parsedPets = data.map(pet => ({
+        ...pet,
+        skills: (pet.skills as any) || []
+      }));
+      setAllPets(parsedPets as Pet[]);
+    }
+  };
+
+  const getTypeEffectiveness = (attackElement: string, defenseElement: string): number => {
+    const effectiveness: { [key: string]: { [key: string]: number } } = {
+      fire: { water: 0.5, earth: 2, air: 1, light: 1, fire: 1 },
+      water: { fire: 2, earth: 0.5, air: 1, light: 1, water: 1 },
+      earth: { water: 2, air: 0.5, fire: 1, light: 1, earth: 1 },
+      air: { earth: 2, fire: 0.5, water: 1, light: 1, air: 1 },
+      light: { fire: 1, water: 1, earth: 1, air: 1, light: 1 },
+    };
+    return effectiveness[attackElement]?.[defenseElement] || 1;
   };
 
   const calculateStats = (pet: Pet): BattlePet => {
@@ -68,6 +101,7 @@ const Battle = () => {
       maxHealth,
       attack: 10 + pet.level * 3,
       defense: 5 + pet.level * 2,
+      speed: 8 + pet.level * 2,
     };
   };
 
@@ -81,14 +115,21 @@ const Battle = () => {
       return;
     }
 
+    const elements = ["light", "fire", "water", "earth", "air"];
+    const speciesNames = ["Fluff", "Spark", "Aqua", "Terra", "Cloud"];
+    const speciesIds = ["fluff", "spark", "aqua", "terra", "cloud"];
+    const randomIndex = Math.floor(Math.random() * 5);
+    
     const aiPet: BattlePet = calculateStats({
       id: "ai-" + Date.now(),
-      name: "Wild " + ["Fluff", "Spark", "Aqua", "Terra", "Cloud"][Math.floor(Math.random() * 5)],
-      species: ["fluff", "spark", "aqua", "terra", "cloud"][Math.floor(Math.random() * 5)],
+      name: "Wild " + speciesNames[randomIndex],
+      species: speciesIds[randomIndex],
+      element: elements[randomIndex],
       level: Math.max(1, selectedPet.level - 2 + Math.floor(Math.random() * 5)),
       health: 100,
       energy: 100,
       color: "blue",
+      skills: [],
     });
 
     setOpponent(aiPet);
@@ -112,13 +153,22 @@ const Battle = () => {
     setBattleLog([`Battle started against ${pet.name}!`]);
   };
 
-  const attack = () => {
+  const attack = (skill?: Skill) => {
     if (!selectedPet || !opponent) return;
 
-    const damage = Math.max(5, selectedPet.attack - opponent.defense + Math.floor(Math.random() * 10));
+    const skillToUse = skill || { name: "Basic Attack", power: 20, element: selectedPet.element };
+    const baseDamage = skill ? skillToUse.power : selectedPet.attack;
+    const typeMultiplier = getTypeEffectiveness(skillToUse.element, opponent.element);
+    const randomFactor = 0.85 + Math.random() * 0.3;
+    const damage = Math.max(5, Math.floor((baseDamage - opponent.defense / 2) * typeMultiplier * randomFactor));
+    
     const newOpponentHealth = Math.max(0, opponent.currentHealth - damage);
     
-    setBattleLog((prev) => [...prev, `${selectedPet.name} dealt ${damage} damage!`]);
+    let effectivenessText = "";
+    if (typeMultiplier > 1) effectivenessText = " It's super effective!";
+    if (typeMultiplier < 1) effectivenessText = " It's not very effective...";
+    
+    setBattleLog((prev) => [...prev, `${selectedPet.name} used ${skillToUse.name}! Dealt ${damage} damage!${effectivenessText}`]);
     setOpponent({ ...opponent, currentHealth: newOpponentHealth });
 
     if (newOpponentHealth <= 0) {
@@ -128,10 +178,22 @@ const Battle = () => {
 
     // Opponent's turn
     setTimeout(() => {
-      const opponentDamage = Math.max(5, opponent.attack - selectedPet.defense + Math.floor(Math.random() * 10));
+      const opponentSkill = opponent.skills.length > 0 
+        ? opponent.skills[Math.floor(Math.random() * opponent.skills.length)]
+        : { name: "Basic Attack", power: 20, element: opponent.element };
+      
+      const opponentBaseDamage = opponent.skills.length > 0 ? opponentSkill.power : opponent.attack;
+      const opponentTypeMultiplier = getTypeEffectiveness(opponentSkill.element, selectedPet.element);
+      const opponentRandomFactor = 0.85 + Math.random() * 0.3;
+      const opponentDamage = Math.max(5, Math.floor((opponentBaseDamage - selectedPet.defense / 2) * opponentTypeMultiplier * opponentRandomFactor));
+      
       const newPlayerHealth = Math.max(0, selectedPet.currentHealth - opponentDamage);
       
-      setBattleLog((prev) => [...prev, `${opponent.name} dealt ${opponentDamage} damage!`]);
+      let opponentEffectivenessText = "";
+      if (opponentTypeMultiplier > 1) opponentEffectivenessText = " It's super effective!";
+      if (opponentTypeMultiplier < 1) opponentEffectivenessText = " It's not very effective...";
+      
+      setBattleLog((prev) => [...prev, `${opponent.name} used ${opponentSkill.name}! Dealt ${opponentDamage} damage!${opponentEffectivenessText}`]);
       setSelectedPet({ ...selectedPet, currentHealth: newPlayerHealth });
 
       if (newPlayerHealth <= 0) {
@@ -327,8 +389,9 @@ const Battle = () => {
                       alt={selectedPet?.name}
                       className="w-32 h-32 mx-auto"
                     />
-                    <h3 className="font-bold">{selectedPet?.name}</h3>
+                            <h3 className="font-bold">{selectedPet?.name}</h3>
                     <p className="text-sm text-muted-foreground">Level {selectedPet?.level}</p>
+                    <p className="text-xs text-primary/80 font-semibold">{selectedPet?.element.charAt(0).toUpperCase()}{selectedPet?.element.slice(1)} Element</p>
                     <div className="space-y-1">
                       <div className="flex items-center justify-between text-xs">
                         <span>HP</span>
@@ -357,8 +420,9 @@ const Battle = () => {
                       alt={opponent?.name}
                       className="w-32 h-32 mx-auto"
                     />
-                    <h3 className="font-bold">{opponent?.name}</h3>
+                            <h3 className="font-bold">{opponent?.name}</h3>
                     <p className="text-sm text-muted-foreground">Level {opponent?.level}</p>
+                    <p className="text-xs text-primary/80 font-semibold">{opponent?.element.charAt(0).toUpperCase()}{opponent?.element.slice(1)} Element</p>
                     <div className="space-y-1">
                       <div className="flex items-center justify-between text-xs">
                         <span>HP</span>
@@ -395,14 +459,35 @@ const Battle = () => {
                   </Card>
                 </div>
 
+                {selectedPet && selectedPet.skills.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-center">Skills</h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      {selectedPet.skills.map((skill, index) => (
+                        <Button
+                          key={index}
+                          onClick={() => attack(skill)}
+                          disabled={!selectedPet || !opponent || selectedPet.currentHealth <= 0 || opponent.currentHealth <= 0}
+                          variant="outline"
+                          size="sm"
+                        >
+                          <Zap className="mr-1 h-4 w-4" />
+                          {skill.name}
+                          <span className="ml-1 text-xs">({skill.power})</span>
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <Button
-                  onClick={attack}
+                  onClick={() => attack()}
                   disabled={!selectedPet || !opponent || selectedPet.currentHealth <= 0 || opponent.currentHealth <= 0}
                   className="w-full"
                   size="lg"
                 >
                   <Sword className="mr-2 h-5 w-5" />
-                  Attack!
+                  Basic Attack
                 </Button>
               </CardContent>
             </Card>
