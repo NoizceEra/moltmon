@@ -7,7 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Sword, Shield, Zap, Cloud, Flame, Droplet, Mountain, Wind } from "lucide-react";
+import { Sword, Shield, Zap, Cloud, Flame, Droplet, Mountain, Wind, Sparkles, MoveRight } from "lucide-react";
 import { Navbar } from "@/components/ui/navbar";
 import { Footer } from "@/components/ui/footer";
 
@@ -40,6 +40,8 @@ interface BattlePet extends Pet {
   speed: number;
   statusEffect: StatusEffect;
   statusTurns: number;
+  isDefending: boolean;
+  isDodging: boolean;
 }
 
 const Battle = () => {
@@ -124,6 +126,8 @@ const Battle = () => {
       speed: 8 + pet.level * 2,
       statusEffect: null,
       statusTurns: 0,
+      isDefending: false,
+      isDodging: false,
     };
   };
 
@@ -256,8 +260,43 @@ const Battle = () => {
     return { pet: updatedPet, damage, log };
   };
 
+  const defend = () => {
+    if (!selectedPet || !opponent) return;
+
+    setSelectedPet({ ...selectedPet, isDefending: true, isDodging: false });
+    setBattleLog((prev) => [...prev, `${selectedPet.name} took a defensive stance!`]);
+
+    setTimeout(() => opponentTurn(), 1000);
+  };
+
+  const dodge = () => {
+    if (!selectedPet || !opponent) return;
+
+    setSelectedPet({ ...selectedPet, isDodging: true, isDefending: false });
+    setBattleLog((prev) => [...prev, `${selectedPet.name} prepares to dodge and counter!`]);
+
+    setTimeout(() => opponentTurn(), 1000);
+  };
+
+  const specialAttack = () => {
+    if (!selectedPet || !opponent) return;
+
+    // Special attack is a powerful attack with 2x damage
+    const specialSkill: Skill = {
+      name: "Special Attack",
+      power: selectedPet.attack * 2,
+      element: selectedPet.element
+    };
+
+    setBattleLog((prev) => [...prev, `${selectedPet.name} charges a special attack!`]);
+    attack(specialSkill);
+  };
+
   const attack = (skill?: Skill) => {
     if (!selectedPet || !opponent) return;
+
+    // Reset defensive stances
+    setSelectedPet({ ...selectedPet, isDefending: false, isDodging: false });
 
     // Check if frozen
     if (selectedPet.statusEffect === "freeze") {
@@ -364,6 +403,9 @@ const Battle = () => {
   const opponentTurn = () => {
     if (!selectedPet || !opponent) return;
 
+    // Reset opponent defensive stances
+    setOpponent({ ...opponent, isDefending: false, isDodging: false });
+
     // Check if frozen
     if (opponent.statusEffect === "freeze") {
       const statusResult = processStatusEffect(opponent);
@@ -380,11 +422,27 @@ const Battle = () => {
       return;
     }
 
+    // Check if player is dodging (75% chance to dodge)
+    if (selectedPet.isDodging && Math.random() < 0.75) {
+      setBattleLog((prev) => [...prev, `${selectedPet.name} dodged the attack!`]);
+      
+      // Counter attack with 50% power
+      const counterDamage = Math.floor(selectedPet.attack * 0.5);
+      const newOpponentHealth = Math.max(0, opponent.currentHealth - counterDamage);
+      setOpponent({ ...opponent, currentHealth: newOpponentHealth });
+      setBattleLog((prev) => [...prev, `${selectedPet.name} countered for ${counterDamage} damage!`]);
+      
+      if (newOpponentHealth <= 0) {
+        endBattle(true);
+      }
+      return;
+    }
+
     const opponentSkill = opponent.skills.length > 0 
       ? opponent.skills[Math.floor(Math.random() * opponent.skills.length)]
       : { name: "Basic Attack", power: 20, element: opponent.element };
     
-    // Calculate dodge
+    // Calculate dodge (natural dodge chance)
     const speedDiff = opponent.speed - selectedPet.speed;
     const dodgeChance = Math.max(0, Math.min(0.3, speedDiff * 0.02));
     
@@ -402,11 +460,16 @@ const Battle = () => {
     const opponentTypeMultiplier = getTypeEffectiveness(opponentSkill.element, selectedPet.element);
     const weatherMultiplier = getWeatherBonus(opponentSkill.element, weather);
     const opponentRandomFactor = 0.85 + Math.random() * 0.3;
+    
+    // Apply defense reduction if defending (reduce damage by 50%)
+    const defenseMultiplier = selectedPet.isDefending ? 0.5 : 1;
+    
     const opponentDamage = Math.max(5, Math.floor(
       (opponentBaseDamage - selectedPet.defense / 2) * 
       opponentTypeMultiplier * 
       weatherMultiplier * 
       critMultiplier * 
+      defenseMultiplier *
       opponentRandomFactor
     ));
     
@@ -415,6 +478,7 @@ const Battle = () => {
     let messages = [];
     messages.push(`${opponent.name} used ${opponentSkill.name}! Dealt ${opponentDamage} damage!`);
     
+    if (selectedPet.isDefending) messages.push("🛡️ Damage reduced by defense!");
     if (isCrit) messages.push("💥 Critical hit!");
     if (opponentTypeMultiplier > 1) messages.push("✨ It's super effective!");
     if (opponentTypeMultiplier < 1) messages.push("💨 It's not very effective...");
@@ -748,36 +812,73 @@ const Battle = () => {
                   </Card>
                 </div>
 
-                {selectedPet && selectedPet.skills.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="font-semibold text-center">Skills</h4>
-                    <div className="grid grid-cols-2 gap-2">
-                      {selectedPet.skills.map((skill, index) => (
-                        <Button
-                          key={index}
-                          onClick={() => attack(skill)}
-                          disabled={!selectedPet || !opponent || selectedPet.currentHealth <= 0 || opponent.currentHealth <= 0}
-                          variant="outline"
-                          size="sm"
-                        >
-                          <Zap className="mr-1 h-4 w-4" />
-                          {skill.name}
-                          <span className="ml-1 text-xs">({skill.power})</span>
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                <div className="space-y-4">
+                  <h4 className="font-semibold text-center">Actions</h4>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      onClick={() => attack()}
+                      disabled={!selectedPet || !opponent || selectedPet.currentHealth <= 0 || opponent.currentHealth <= 0}
+                      variant="default"
+                      size="lg"
+                    >
+                      <Sword className="mr-2 h-5 w-5" />
+                      Attack
+                    </Button>
 
-                <Button
-                  onClick={() => attack()}
-                  disabled={!selectedPet || !opponent || selectedPet.currentHealth <= 0 || opponent.currentHealth <= 0}
-                  className="w-full"
-                  size="lg"
-                >
-                  <Sword className="mr-2 h-5 w-5" />
-                  Basic Attack
-                </Button>
+                    <Button
+                      onClick={defend}
+                      disabled={!selectedPet || !opponent || selectedPet.currentHealth <= 0 || opponent.currentHealth <= 0}
+                      variant="secondary"
+                      size="lg"
+                    >
+                      <Shield className="mr-2 h-5 w-5" />
+                      Defend
+                    </Button>
+
+                    <Button
+                      onClick={dodge}
+                      disabled={!selectedPet || !opponent || selectedPet.currentHealth <= 0 || opponent.currentHealth <= 0}
+                      variant="secondary"
+                      size="lg"
+                    >
+                      <MoveRight className="mr-2 h-5 w-5" />
+                      Dodge
+                    </Button>
+
+                    <Button
+                      onClick={specialAttack}
+                      disabled={!selectedPet || !opponent || selectedPet.currentHealth <= 0 || opponent.currentHealth <= 0}
+                      variant="default"
+                      size="lg"
+                      className="bg-gradient-to-r from-primary to-secondary"
+                    >
+                      <Sparkles className="mr-2 h-5 w-5" />
+                      Special
+                    </Button>
+                  </div>
+
+                  {selectedPet && selectedPet.skills.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="font-semibold text-center text-sm">Element Skills</h4>
+                      <div className="grid grid-cols-2 gap-2">
+                        {selectedPet.skills.map((skill, index) => (
+                          <Button
+                            key={index}
+                            onClick={() => attack(skill)}
+                            disabled={!selectedPet || !opponent || selectedPet.currentHealth <= 0 || opponent.currentHealth <= 0}
+                            variant="outline"
+                            size="sm"
+                          >
+                            <Zap className="mr-1 h-4 w-4" />
+                            {skill.name}
+                            <span className="ml-1 text-xs">({skill.power})</span>
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
           )}
