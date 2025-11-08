@@ -30,6 +30,7 @@ interface Pet {
   color: string;
   element: string;
   skills: Skill[];
+  owner_id?: string;
 }
 
 interface BattleItem {
@@ -79,6 +80,9 @@ const Battle = () => {
   const [specialCooldown, setSpecialCooldown] = useState(0);
   const [dodgeCooldown, setDodgeCooldown] = useState(0);
   const [turnCount, setTurnCount] = useState(0);
+  const [currentBattleId, setCurrentBattleId] = useState<string | null>(null);
+  const [totalAttackerDamage, setTotalAttackerDamage] = useState(0);
+  const [totalDefenderDamage, setTotalDefenderDamage] = useState(0);
 
   const activePet = selectedTeam[activePetIndex];
   const activeOpponent = opponentTeam[activeOpponentIndex];
@@ -275,7 +279,7 @@ const Battle = () => {
     }
   };
 
-  const startAIBattle = () => {
+  const startAIBattle = async () => {
     if (selectedTeam.length === 0) {
       toast({
         title: "No Team Selected",
@@ -308,6 +312,25 @@ const Battle = () => {
       aiTeam.push(aiPet);
     }
 
+    // Create battle record
+    if (user) {
+      const { data: battle, error } = await supabase
+        .from("battles")
+        .insert({
+          attacker_id: user.id,
+          attacker_pet_id: selectedTeam[0].id,
+          defender_pet_id: aiTeam[0].id,
+          is_ai_battle: true,
+          status: 'active'
+        })
+        .select()
+        .single();
+
+      if (!error && battle) {
+        setCurrentBattleId(battle.id);
+      }
+    }
+
     const newWeather = randomWeather();
     setWeather(newWeather);
     setOpponentTeam(aiTeam);
@@ -319,6 +342,8 @@ const Battle = () => {
     setSpecialCooldown(0);
     setDodgeCooldown(0);
     setTurnCount(0);
+    setTotalAttackerDamage(0);
+    setTotalDefenderDamage(0);
     
     const careWarnings = selectedTeam.map(pet => getCareMultiplier(pet).warnings).flat();
     setBattleLog([
@@ -328,7 +353,7 @@ const Battle = () => {
     ]);
   };
 
-  const startPvPBattle = (opponentPets: Pet[]) => {
+  const startPvPBattle = async (opponentPets: Pet[]) => {
     if (selectedTeam.length === 0) {
       toast({
         title: "No Team Selected",
@@ -339,6 +364,27 @@ const Battle = () => {
     }
 
     const opTeam = opponentPets.slice(0, 3).map(pet => calculateStats(pet));
+    
+    // Create battle record
+    if (user) {
+      const { data: battle, error } = await supabase
+        .from("battles")
+        .insert({
+          attacker_id: user.id,
+          attacker_pet_id: selectedTeam[0].id,
+          defender_id: opponentPets[0].owner_id,
+          defender_pet_id: opponentPets[0].id,
+          is_ai_battle: false,
+          status: 'active'
+        })
+        .select()
+        .single();
+
+      if (!error && battle) {
+        setCurrentBattleId(battle.id);
+      }
+    }
+
     const newWeather = randomWeather();
     setWeather(newWeather);
     setOpponentTeam(opTeam);
@@ -350,6 +396,8 @@ const Battle = () => {
     setSpecialCooldown(0);
     setDodgeCooldown(0);
     setTurnCount(0);
+    setTotalAttackerDamage(0);
+    setTotalDefenderDamage(0);
     
     const careWarnings = selectedTeam.map(pet => getCareMultiplier(pet).warnings).flat();
     setBattleLog([
@@ -620,6 +668,9 @@ const Battle = () => {
       randomFactor
     ));
     
+    // Track attacker damage
+    setTotalAttackerDamage(prev => prev + damage);
+    
     const updatedOpponentTeam = [...opponentTeam];
     let newOpponentHealth = Math.max(0, activeOpponent.currentHealth - damage);
     
@@ -709,6 +760,7 @@ const Battle = () => {
       setBattleLog((prev) => [...prev, `${activePet.name} dodged the attack!`]);
       
       const counterDamage = Math.floor(activePet.attack * 0.5);
+      setTotalAttackerDamage(prev => prev + counterDamage);
       const newOpponentHealth = Math.max(0, currentOpponent.currentHealth - counterDamage);
       updatedOpponentTeam[activeOpponentIndex].currentHealth = newOpponentHealth;
       setOpponentTeam(updatedOpponentTeam);
@@ -762,6 +814,9 @@ const Battle = () => {
       defenseMultiplier *
       opponentRandomFactor
     ));
+    
+    // Track defender damage
+    setTotalDefenderDamage(prev => prev + opponentDamage);
     
     const updatedTeam = [...selectedTeam];
     let newPlayerHealth = Math.max(0, activePet.currentHealth - opponentDamage);
@@ -817,64 +872,83 @@ const Battle = () => {
   };
 
   const endBattle = async (won: boolean) => {
-    const rewards = won ? (50 + activePet.level * 10) * selectedTeam.length : 10;
-    const experience = won ? (30 + activePet.level * 5) * selectedTeam.length : 5;
-
-    setBattleLog((prev) => [
-      ...prev,
-      won ? "🎉 Victory!" : "💔 Defeat...",
-      `Earned ${rewards} PetPoints and ${experience} EXP!`,
-    ]);
-
-    if (user) {
-      // Track quest progress for battles
-      await trackQuestProgress(user.id, 'battle', 1); // Participation
-      if (won) {
-        await trackQuestProgress(user.id, 'battle', 1); // Extra count for wins (handled by quest target)
-      }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("pet_points")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (profile) {
-        await supabase
-          .from("profiles")
-          .update({ pet_points: profile.pet_points + rewards })
-          .eq("id", user.id);
-      }
-
-      // Update all participating pets
-      for (const pet of selectedTeam) {
-        const { data: petData } = await supabase
-          .from("pets")
-          .select("experience, level")
-          .eq("id", pet.id)
-          .maybeSingle();
-
-        if (petData) {
-          const newExp = petData.experience + experience;
-          const newLevel = Math.floor(newExp / 100) + 1;
-          await supabase
-            .from("pets")
-            .update({ experience: newExp, level: newLevel })
-            .eq("id", pet.id);
-        }
-      }
+    if (!user || !currentBattleId) {
+      // Fallback for battles without proper setup
+      setBattleLog((prev) => [
+        ...prev,
+        won ? "🎉 Victory!" : "💔 Defeat...",
+      ]);
+      setTimeout(() => {
+        setInBattle(false);
+        setOpponentTeam([]);
+        setSelectedTeam([]);
+        setActiveOpponentIndex(0);
+        setActivePetIndex(0);
+        setComboCount(0);
+        setLastSkillElement(null);
+        fetchMyPets();
+      }, 3000);
+      return;
     }
 
-    setTimeout(() => {
-      setInBattle(false);
-      setOpponentTeam([]);
-      setSelectedTeam([]);
-      setActiveOpponentIndex(0);
-      setActivePetIndex(0);
-      setComboCount(0);
-      setLastSkillElement(null);
-      fetchMyPets();
-    }, 3000);
+    try {
+      // Call server-side edge function to calculate and distribute rewards
+      const { data: session } = await supabase.auth.getSession();
+      
+      const response = await supabase.functions.invoke('complete-battle', {
+        body: {
+          battleId: currentBattleId,
+          winnerId: won ? user.id : (opponentTeam[0].id.startsWith('ai-') ? null : opponentTeam[0].owner_id),
+          attackerDamageDealt: totalAttackerDamage,
+          defenderDamageDealt: totalDefenderDamage
+        }
+      });
+
+      if (response.error) {
+        console.error('Battle completion error:', response.error);
+        toast({
+          title: "Battle Error",
+          description: "Failed to complete battle. Please try again.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const { rewards, experience } = response.data;
+
+      setBattleLog((prev) => [
+        ...prev,
+        won ? "🎉 Victory!" : "💔 Defeat...",
+        `Earned ${rewards} PetPoints and ${experience} EXP!`,
+      ]);
+
+      // Track quest progress for battles
+      await trackQuestProgress(user.id, 'battle', 1);
+      if (won) {
+        await trackQuestProgress(user.id, 'battle', 1);
+      }
+
+      setTimeout(() => {
+        setInBattle(false);
+        setOpponentTeam([]);
+        setSelectedTeam([]);
+        setActiveOpponentIndex(0);
+        setActivePetIndex(0);
+        setComboCount(0);
+        setLastSkillElement(null);
+        setCurrentBattleId(null);
+        setTotalAttackerDamage(0);
+        setTotalDefenderDamage(0);
+        fetchMyPets();
+      }, 3000);
+    } catch (error) {
+      console.error('Unexpected battle error:', error);
+      toast({
+        title: "Battle Error",
+        description: "An unexpected error occurred.",
+        variant: "destructive"
+      });
+    }
   };
 
   const getWeatherIcon = () => {
