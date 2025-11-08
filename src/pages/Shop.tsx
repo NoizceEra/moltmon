@@ -70,42 +70,15 @@ const Shop = () => {
   const handlePurchase = async (item: ShopItem) => {
     if (!user || !profile) return;
 
-    if (profile.pet_points < item.price) {
-      toast.error("Not enough PetPoints!");
-      return;
-    }
-
     try {
-      // Check if item already in inventory
-      const { data: existing } = await supabase
-        .from("inventory")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("item_id", item.id)
-        .maybeSingle();
+      // Use atomic RPC function to prevent race conditions
+      const { error } = await supabase.rpc('purchase_shop_item', {
+        p_user_id: user.id,
+        p_item_id: item.id,
+        p_item_price: item.price
+      });
 
-      if (existing) {
-        // Update quantity
-        await supabase
-          .from("inventory")
-          .update({ quantity: existing.quantity + 1 })
-          .eq("id", existing.id);
-      } else {
-        // Insert new
-        await supabase.from("inventory").insert([
-          {
-            user_id: user.id,
-            item_id: item.id,
-            quantity: 1,
-          },
-        ]);
-      }
-
-      // Update points
-      await supabase
-        .from("profiles")
-        .update({ pet_points: profile.pet_points - item.price })
-        .eq("id", user.id);
+      if (error) throw error;
 
       // Track quest progress for shop purchases
       await trackQuestProgress(user.id, 'challenge', 1);

@@ -8,6 +8,14 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { Send } from "lucide-react";
 import { Navbar } from "@/components/ui/navbar";
+import { z } from "zod";
+
+const messageSchema = z.object({
+  content: z.string()
+    .trim()
+    .min(1, 'Message cannot be empty')
+    .max(500, 'Message must be less than 500 characters')
+});
 
 interface Message {
   id: string;
@@ -76,13 +84,24 @@ const Chat = () => {
   }, [messages]);
 
   const sendMessage = async () => {
-    if (!newMessage.trim() || !user) return;
+    if (!user) return;
+
+    // Validate message with zod
+    const result = messageSchema.safeParse({ content: newMessage });
+    if (!result.success) {
+      toast({
+        title: "Invalid Message",
+        description: result.error.errors[0].message,
+        variant: "destructive",
+      });
+      return;
+    }
 
     const { error } = await supabase.from("messages").insert([
       {
         user_id: user.id,
         username,
-        content: newMessage.trim(),
+        content: result.data.content,
       },
     ]);
 

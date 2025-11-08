@@ -86,34 +86,14 @@ export default function Quests() {
     if (!user) return;
 
     try {
-      // Update quest status to claimed
-      const { error: updateError } = await supabase
-        .from('user_quest_progress')
-        .update({ 
-          status: 'claimed',
-          claimed_at: new Date().toISOString()
-        })
-        .eq('id', questProgress.id);
+      // Use atomic RPC function to prevent race conditions
+      const { error } = await supabase.rpc('claim_quest_reward', {
+        p_user_id: user.id,
+        p_quest_progress_id: questProgress.id,
+        p_reward_points: questProgress.quest.reward_petpoints
+      });
 
-      if (updateError) throw updateError;
-
-      // Update user profile with rewards
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('pet_points')
-        .eq('id', user.id)
-        .single();
-
-      if (profileError) throw profileError;
-
-      const { error: rewardError } = await supabase
-        .from('profiles')
-        .update({ 
-          pet_points: profile.pet_points + questProgress.quest.reward_petpoints 
-        })
-        .eq('id', user.id);
-
-      if (rewardError) throw rewardError;
+      if (error) throw error;
 
       toast({
         title: "Reward Claimed!",
@@ -126,7 +106,7 @@ export default function Quests() {
       console.error('Error claiming reward:', error);
       toast({
         title: "Error",
-        description: "Failed to claim reward",
+        description: error instanceof Error ? error.message : "Failed to claim reward",
         variant: "destructive",
       });
     }

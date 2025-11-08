@@ -332,12 +332,32 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      leaderboard: {
+        Row: {
+          id: string | null
+          pet_points: number | null
+          rank: number | null
+          username: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       assign_daily_quests_to_user: {
         Args: { p_user_id: string }
         Returns: undefined
+      }
+      claim_quest_reward: {
+        Args: {
+          p_quest_progress_id: string
+          p_reward_points: number
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      purchase_shop_item: {
+        Args: { p_item_id: string; p_item_price: number; p_user_id: string }
+        Returns: Json
       }
     }
     Enums: {
