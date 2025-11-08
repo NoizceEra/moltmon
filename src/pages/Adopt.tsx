@@ -16,11 +16,11 @@ import petTerra from "@/assets/pet-terra.png";
 import petCloud from "@/assets/pet-cloud.png";
 
 const species = [
-  { id: "fluff", name: "Fluff", image: petFluff, description: "A fluffy, loving companion", element: "light" },
-  { id: "spark", name: "Spark", image: petSpark, description: "Magical and full of energy", element: "fire" },
-  { id: "aqua", name: "Aqua", image: petAqua, description: "Calm and peaceful water friend", element: "water" },
-  { id: "terra", name: "Terra", image: petTerra, description: "Strong and dependable", element: "earth" },
-  { id: "cloud", name: "Cloud", image: petCloud, description: "Light and dreamy", element: "air" },
+  { id: "fluff", name: "Cats", image: petFluff, description: "A fluffy, loving companion", element: "light" },
+  { id: "spark", name: "Dragons", image: petSpark, description: "Magical and full of energy", element: "fire" },
+  { id: "aqua", name: "Sea Critters", image: petAqua, description: "Calm and peaceful water friend", element: "water" },
+  { id: "terra", name: "Mammals", image: petTerra, description: "Strong and dependable", element: "earth" },
+  { id: "cloud", name: "Bird", image: petCloud, description: "Light and dreamy", element: "air" },
 ];
 
 const Adopt = () => {
