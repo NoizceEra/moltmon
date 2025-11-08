@@ -7,7 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Sword, Shield, Zap, Cloud, Flame, Droplet, Mountain, Wind, Sparkles, MoveRight } from "lucide-react";
+import { Sword, Shield, Zap, Cloud, Flame, Droplet, Mountain, Wind, Sparkles, MoveRight, Package, AlertTriangle, RefreshCw } from "lucide-react";
 import { Navbar } from "@/components/ui/navbar";
 import { Footer } from "@/components/ui/footer";
 
@@ -24,9 +24,20 @@ interface Pet {
   level: number;
   health: number;
   energy: number;
+  hunger: number;
+  happiness: number;
   color: string;
   element: string;
   skills: Skill[];
+}
+
+interface BattleItem {
+  id: string;
+  item_id: string;
+  name: string;
+  effect_type: string;
+  effect_value: number;
+  quantity: number;
 }
 
 type StatusEffect = "burn" | "freeze" | "paralysis" | "poison" | null;
@@ -42,25 +53,40 @@ interface BattlePet extends Pet {
   statusTurns: number;
   isDefending: boolean;
   isDodging: boolean;
+  attackBoost: number;
+  defenseBoost: number;
+  speedBoost: number;
+  boostTurns: number;
+  isFainted: boolean;
 }
 
 const Battle = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [myPets, setMyPets] = useState<Pet[]>([]);
-  const [selectedPet, setSelectedPet] = useState<BattlePet | null>(null);
-  const [opponent, setOpponent] = useState<BattlePet | null>(null);
+  const [selectedTeam, setSelectedTeam] = useState<BattlePet[]>([]);
+  const [activePetIndex, setActivePetIndex] = useState(0);
+  const [opponentTeam, setOpponentTeam] = useState<BattlePet[]>([]);
+  const [activeOpponentIndex, setActiveOpponentIndex] = useState(0);
   const [battleLog, setBattleLog] = useState<string[]>([]);
   const [inBattle, setInBattle] = useState(false);
   const [allPets, setAllPets] = useState<Pet[]>([]);
   const [weather, setWeather] = useState<Weather>("clear");
   const [comboCount, setComboCount] = useState(0);
   const [lastSkillElement, setLastSkillElement] = useState<string | null>(null);
+  const [battleItems, setBattleItems] = useState<BattleItem[]>([]);
+  const [specialCooldown, setSpecialCooldown] = useState(0);
+  const [dodgeCooldown, setDodgeCooldown] = useState(0);
+  const [turnCount, setTurnCount] = useState(0);
+
+  const activePet = selectedTeam[activePetIndex];
+  const activeOpponent = opponentTeam[activeOpponentIndex];
 
   useEffect(() => {
     if (user) {
       fetchMyPets();
       fetchAllPets();
+      fetchBattleItems();
     }
   }, [user]);
 
@@ -93,6 +119,37 @@ const Battle = () => {
     }
   };
 
+  const fetchBattleItems = async () => {
+    const { data: inventoryData } = await supabase
+      .from("inventory")
+      .select(`
+        id,
+        item_id,
+        quantity,
+        shop_items (
+          name,
+          effect_type,
+          effect_value,
+          category
+        )
+      `)
+      .eq("user_id", user?.id);
+
+    if (inventoryData) {
+      const battleItems = inventoryData
+        .filter((item: any) => item.shop_items?.category === "battle")
+        .map((item: any) => ({
+          id: item.id,
+          item_id: item.item_id,
+          name: item.shop_items.name,
+          effect_type: item.shop_items.effect_type,
+          effect_value: item.shop_items.effect_value,
+          quantity: item.quantity,
+        }));
+      setBattleItems(battleItems);
+    }
+  };
+
   const getTypeEffectiveness = (attackElement: string, defenseElement: string): number => {
     const effectiveness: { [key: string]: { [key: string]: number } } = {
       fire: { water: 0.5, earth: 2, air: 1, light: 1, fire: 1 },
@@ -115,19 +172,72 @@ const Battle = () => {
     return bonuses[element]?.[currentWeather] || 1;
   };
 
+  const getCareMultiplier = (pet: Pet): { multiplier: number; warnings: string[] } => {
+    const warnings: string[] = [];
+    let multiplier = 1;
+
+    // Health affects overall performance
+    if (pet.health < 30) {
+      multiplier *= 0.6;
+      warnings.push(`${pet.name} is in poor health!`);
+    } else if (pet.health < 60) {
+      multiplier *= 0.8;
+      warnings.push(`${pet.name}'s health could be better`);
+    }
+
+    // Energy affects attack and speed
+    if (pet.energy < 30) {
+      multiplier *= 0.7;
+      warnings.push(`${pet.name} is exhausted!`);
+    } else if (pet.energy < 60) {
+      multiplier *= 0.9;
+    }
+
+    // Hunger affects defense
+    if (pet.hunger > 70) {
+      multiplier *= 0.7;
+      warnings.push(`${pet.name} is starving!`);
+    } else if (pet.hunger > 40) {
+      multiplier *= 0.85;
+    }
+
+    // Happiness affects all stats
+    if (pet.happiness < 30) {
+      multiplier *= 0.75;
+      warnings.push(`${pet.name} is very unhappy!`);
+    } else if (pet.happiness < 60) {
+      multiplier *= 0.9;
+    }
+
+    // Bonus for well-cared pets
+    if (pet.health >= 80 && pet.energy >= 80 && pet.hunger <= 30 && pet.happiness >= 80) {
+      multiplier *= 1.2;
+      warnings.push(`${pet.name} is in excellent condition! +20% boost!`);
+    }
+
+    return { multiplier, warnings };
+  };
+
   const calculateStats = (pet: Pet): BattlePet => {
     const maxHealth = 100 + pet.level * 20;
+    const { multiplier, warnings } = getCareMultiplier(pet);
+    
     return {
       ...pet,
       currentHealth: maxHealth,
       maxHealth,
-      attack: 10 + pet.level * 3,
-      defense: 5 + pet.level * 2,
-      speed: 8 + pet.level * 2,
+      attack: Math.floor((10 + pet.level * 3) * multiplier),
+      defense: Math.floor((5 + pet.level * 2) * multiplier),
+      speed: Math.floor((8 + pet.level * 2) * multiplier),
       statusEffect: null,
       statusTurns: 0,
       isDefending: false,
       isDodging: false,
+      attackBoost: 0,
+      defenseBoost: 0,
+      speedBoost: 0,
+      boostTurns: 0,
+      isFainted: false,
     };
   };
 
@@ -136,11 +246,39 @@ const Battle = () => {
     return weathers[Math.floor(Math.random() * weathers.length)];
   };
 
+  const togglePetSelection = (pet: Pet) => {
+    const petInTeam = selectedTeam.find(p => p.id === pet.id);
+    
+    if (petInTeam) {
+      setSelectedTeam(selectedTeam.filter(p => p.id !== pet.id));
+    } else {
+      if (selectedTeam.length >= 3) {
+        toast({
+          title: "Team Full",
+          description: "You can only have 3 pets in your team",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      const { warnings } = getCareMultiplier(pet);
+      if (warnings.length > 0 && warnings.some(w => w.includes('!'))) {
+        toast({
+          title: "Warning",
+          description: warnings.join(', '),
+          variant: "destructive",
+        });
+      }
+      
+      setSelectedTeam([...selectedTeam, calculateStats(pet)]);
+    }
+  };
+
   const startAIBattle = () => {
-    if (!selectedPet) {
+    if (selectedTeam.length === 0) {
       toast({
-        title: "Select a Pet",
-        description: "Choose a pet to battle with",
+        title: "No Team Selected",
+        description: "Select 1-3 pets to battle with",
         variant: "destructive",
       });
       return;
@@ -149,53 +287,149 @@ const Battle = () => {
     const elements = ["light", "fire", "water", "earth", "air"];
     const speciesNames = ["Fluff", "Spark", "Aqua", "Terra", "Cloud"];
     const speciesIds = ["fluff", "spark", "aqua", "terra", "cloud"];
-    const randomIndex = Math.floor(Math.random() * 5);
     
-    const aiPet: BattlePet = calculateStats({
-      id: "ai-" + Date.now(),
-      name: "Wild " + speciesNames[randomIndex],
-      species: speciesIds[randomIndex],
-      element: elements[randomIndex],
-      level: Math.max(1, selectedPet.level - 2 + Math.floor(Math.random() * 5)),
-      health: 100,
-      energy: 100,
-      color: "blue",
-      skills: [],
-    });
+    const aiTeam: BattlePet[] = [];
+    for (let i = 0; i < Math.min(selectedTeam.length, 3); i++) {
+      const randomIndex = Math.floor(Math.random() * 5);
+      const aiPet: BattlePet = calculateStats({
+        id: "ai-" + Date.now() + "-" + i,
+        name: "Wild " + speciesNames[randomIndex],
+        species: speciesIds[randomIndex],
+        element: elements[randomIndex],
+        level: Math.max(1, selectedTeam[0].level - 2 + Math.floor(Math.random() * 5)),
+        health: 100,
+        energy: 100,
+        hunger: 50,
+        happiness: 50,
+        color: "blue",
+        skills: [],
+      });
+      aiTeam.push(aiPet);
+    }
 
     const newWeather = randomWeather();
     setWeather(newWeather);
-    setOpponent(aiPet);
+    setOpponentTeam(aiTeam);
+    setActiveOpponentIndex(0);
+    setActivePetIndex(0);
     setInBattle(true);
     setComboCount(0);
     setLastSkillElement(null);
+    setSpecialCooldown(0);
+    setDodgeCooldown(0);
+    setTurnCount(0);
+    
+    const careWarnings = selectedTeam.map(pet => getCareMultiplier(pet).warnings).flat();
     setBattleLog([
-      `Battle started against ${aiPet.name}!`,
-      `Weather: ${newWeather.charAt(0).toUpperCase() + newWeather.slice(1)}`
+      `Battle started! Your team vs ${aiTeam.length} wild pets!`,
+      `Weather: ${newWeather.charAt(0).toUpperCase() + newWeather.slice(1)}`,
+      ...careWarnings,
     ]);
   };
 
-  const startPvPBattle = (pet: Pet) => {
-    if (!selectedPet) {
+  const startPvPBattle = (opponentPets: Pet[]) => {
+    if (selectedTeam.length === 0) {
       toast({
-        title: "Select a Pet",
-        description: "Choose a pet to battle with",
+        title: "No Team Selected",
+        description: "Select 1-3 pets to battle with",
         variant: "destructive",
       });
       return;
     }
 
-    const opponentPet = calculateStats(pet);
+    const opTeam = opponentPets.slice(0, 3).map(pet => calculateStats(pet));
     const newWeather = randomWeather();
     setWeather(newWeather);
-    setOpponent(opponentPet);
+    setOpponentTeam(opTeam);
+    setActiveOpponentIndex(0);
+    setActivePetIndex(0);
     setInBattle(true);
     setComboCount(0);
     setLastSkillElement(null);
+    setSpecialCooldown(0);
+    setDodgeCooldown(0);
+    setTurnCount(0);
+    
+    const careWarnings = selectedTeam.map(pet => getCareMultiplier(pet).warnings).flat();
     setBattleLog([
-      `Battle started against ${pet.name}!`,
-      `Weather: ${newWeather.charAt(0).toUpperCase() + newWeather.slice(1)}`
+      `Team battle started!`,
+      `Weather: ${newWeather.charAt(0).toUpperCase() + newWeather.slice(1)}`,
+      ...careWarnings,
     ]);
+  };
+
+  const switchPet = (index: number) => {
+    if (selectedTeam[index].isFainted) {
+      toast({ title: "Can't Switch", description: "That pet has fainted!", variant: "destructive" });
+      return;
+    }
+    setActivePetIndex(index);
+    setBattleLog((prev) => [...prev, `Go, ${selectedTeam[index].name}!`]);
+    
+    setTimeout(() => opponentTurn(), 1000);
+  };
+
+  const useItem = async (item: BattleItem) => {
+    if (!activePet || !activeOpponent) return;
+
+    const updatedTeam = [...selectedTeam];
+    const pet = updatedTeam[activePetIndex];
+
+    switch (item.effect_type) {
+      case "heal":
+        const healAmount = item.effect_value === 100 ? pet.maxHealth : Math.min(item.effect_value, pet.maxHealth - pet.currentHealth);
+        pet.currentHealth = Math.min(pet.maxHealth, pet.currentHealth + healAmount);
+        setBattleLog((prev) => [...prev, `Used ${item.name}! Restored ${healAmount} HP!`]);
+        break;
+      
+      case "attack_boost":
+        pet.attackBoost = item.effect_value;
+        pet.boostTurns = 3;
+        setBattleLog((prev) => [...prev, `Used ${item.name}! Attack increased by ${item.effect_value}%!`]);
+        break;
+      
+      case "defense_boost":
+        pet.defenseBoost = item.effect_value;
+        pet.boostTurns = 3;
+        setBattleLog((prev) => [...prev, `Used ${item.name}! Defense increased by ${item.effect_value}%!`]);
+        break;
+      
+      case "speed_boost":
+        pet.speedBoost = item.effect_value;
+        pet.boostTurns = 3;
+        setBattleLog((prev) => [...prev, `Used ${item.name}! Speed increased by ${item.effect_value}%!`]);
+        break;
+      
+      case "cure":
+        pet.statusEffect = null;
+        pet.statusTurns = 0;
+        setBattleLog((prev) => [...prev, `Used ${item.name}! Status effects cured!`]);
+        break;
+      
+      case "revive":
+        const faintedIndex = updatedTeam.findIndex(p => p.isFainted);
+        if (faintedIndex !== -1) {
+          updatedTeam[faintedIndex].isFainted = false;
+          updatedTeam[faintedIndex].currentHealth = Math.floor(updatedTeam[faintedIndex].maxHealth * 0.5);
+          setBattleLog((prev) => [...prev, `Used ${item.name}! ${updatedTeam[faintedIndex].name} was revived!`]);
+        }
+        break;
+    }
+
+    setSelectedTeam(updatedTeam);
+
+    // Consume item
+    await supabase
+      .from("inventory")
+      .update({ quantity: item.quantity - 1 })
+      .eq("id", item.id);
+    
+    if (item.quantity - 1 <= 0) {
+      await supabase.from("inventory").delete().eq("id", item.id);
+    }
+    
+    fetchBattleItems();
+    setTimeout(() => opponentTurn(), 1000);
   };
 
   const applyStatusEffect = (attacker: BattlePet, defender: BattlePet): { defender: BattlePet, log: string } => {
@@ -261,68 +495,88 @@ const Battle = () => {
   };
 
   const defend = () => {
-    if (!selectedPet || !opponent) return;
+    if (!activePet || !activeOpponent) return;
 
-    setSelectedPet({ ...selectedPet, isDefending: true, isDodging: false });
-    setBattleLog((prev) => [...prev, `${selectedPet.name} took a defensive stance!`]);
+    const updatedTeam = [...selectedTeam];
+    updatedTeam[activePetIndex] = { ...activePet, isDefending: true, isDodging: false };
+    setSelectedTeam(updatedTeam);
+    setBattleLog((prev) => [...prev, `${activePet.name} took a defensive stance!`]);
 
     setTimeout(() => opponentTurn(), 1000);
   };
 
   const dodge = () => {
-    if (!selectedPet || !opponent) return;
+    if (!activePet || !activeOpponent || dodgeCooldown > 0) return;
 
-    setSelectedPet({ ...selectedPet, isDodging: true, isDefending: false });
-    setBattleLog((prev) => [...prev, `${selectedPet.name} prepares to dodge and counter!`]);
+    const updatedTeam = [...selectedTeam];
+    updatedTeam[activePetIndex] = { ...activePet, isDodging: true, isDefending: false };
+    setSelectedTeam(updatedTeam);
+    setDodgeCooldown(2);
+    setBattleLog((prev) => [...prev, `${activePet.name} prepares to dodge and counter!`]);
 
     setTimeout(() => opponentTurn(), 1000);
   };
 
   const specialAttack = () => {
-    if (!selectedPet || !opponent) return;
+    if (!activePet || !activeOpponent || specialCooldown > 0) return;
 
-    // Special attack is a powerful attack with 2x damage
     const specialSkill: Skill = {
       name: "Special Attack",
-      power: selectedPet.attack * 2,
-      element: selectedPet.element
+      power: activePet.attack * 2,
+      element: activePet.element
     };
 
-    setBattleLog((prev) => [...prev, `${selectedPet.name} charges a special attack!`]);
+    setSpecialCooldown(3);
+    setBattleLog((prev) => [...prev, `${activePet.name} charges a special attack!`]);
     attack(specialSkill);
   };
 
   const attack = (skill?: Skill) => {
-    if (!selectedPet || !opponent) return;
+    if (!activePet || !activeOpponent) return;
 
-    // Reset defensive stances
-    setSelectedPet({ ...selectedPet, isDefending: false, isDodging: false });
+    // Update cooldowns and boosts
+    const newTurnCount = turnCount + 1;
+    setTurnCount(newTurnCount);
+    setSpecialCooldown(Math.max(0, specialCooldown - 1));
+    setDodgeCooldown(Math.max(0, dodgeCooldown - 1));
+
+    const updatedTeam = [...selectedTeam];
+    const currentPet = { ...updatedTeam[activePetIndex], isDefending: false, isDodging: false };
+    
+    if (currentPet.boostTurns > 0) {
+      currentPet.boostTurns--;
+      if (currentPet.boostTurns === 0) {
+        currentPet.attackBoost = 0;
+        currentPet.defenseBoost = 0;
+        currentPet.speedBoost = 0;
+      }
+    }
+    updatedTeam[activePetIndex] = currentPet;
+    setSelectedTeam(updatedTeam);
 
     // Check if frozen
-    if (selectedPet.statusEffect === "freeze") {
-      const statusResult = processStatusEffect(selectedPet);
-      setSelectedPet(statusResult.pet);
+    if (currentPet.statusEffect === "freeze") {
+      const statusResult = processStatusEffect(currentPet);
+      updatedTeam[activePetIndex] = statusResult.pet;
+      setSelectedTeam(updatedTeam);
       setBattleLog((prev) => [...prev, statusResult.log]);
       
-      setTimeout(() => {
-        opponentTurn();
-      }, 1000);
+      setTimeout(() => opponentTurn(), 1000);
       return;
     }
 
     // Check if paralyzed
-    if (selectedPet.statusEffect === "paralysis" && Math.random() < 0.25) {
-      const statusResult = processStatusEffect(selectedPet);
-      setSelectedPet(statusResult.pet);
+    if (currentPet.statusEffect === "paralysis" && Math.random() < 0.25) {
+      const statusResult = processStatusEffect(currentPet);
+      updatedTeam[activePetIndex] = statusResult.pet;
+      setSelectedTeam(updatedTeam);
       setBattleLog((prev) => [...prev, statusResult.log]);
       
-      setTimeout(() => {
-        opponentTurn();
-      }, 1000);
+      setTimeout(() => opponentTurn(), 1000);
       return;
     }
 
-    const skillToUse = skill || { name: "Basic Attack", power: 20, element: selectedPet.element };
+    const skillToUse = skill || { name: "Basic Attack", power: 20, element: currentPet.element };
     
     // Combo system
     let comboBonus = 1;
@@ -335,26 +589,29 @@ const Battle = () => {
     setLastSkillElement(skill?.element || null);
 
     // Calculate dodge chance
-    const speedDiff = selectedPet.speed - opponent.speed;
+    const speedDiff = currentPet.speed - activeOpponent.speed;
     const dodgeChance = Math.max(0, Math.min(0.3, speedDiff * 0.02));
     
     if (Math.random() < dodgeChance) {
-      setBattleLog((prev) => [...prev, `${opponent.name} dodged the attack!`]);
+      setBattleLog((prev) => [...prev, `${activeOpponent.name} dodged the attack!`]);
       setTimeout(() => opponentTurn(), 1000);
       return;
     }
 
     // Calculate critical hit
-    const critChance = 0.15 + (selectedPet.speed * 0.001);
+    const critChance = 0.15 + (currentPet.speed * 0.001);
     const isCrit = Math.random() < critChance;
     const critMultiplier = isCrit ? 1.5 : 1;
 
-    const baseDamage = skill ? skillToUse.power : selectedPet.attack;
-    const typeMultiplier = getTypeEffectiveness(skillToUse.element, opponent.element);
+    // Apply stat boosts
+    const attackBoost = 1 + (currentPet.attackBoost / 100);
+    
+    const baseDamage = skill ? skillToUse.power : currentPet.attack;
+    const typeMultiplier = getTypeEffectiveness(skillToUse.element, activeOpponent.element);
     const weatherMultiplier = getWeatherBonus(skillToUse.element, weather);
     const randomFactor = 0.85 + Math.random() * 0.3;
     const damage = Math.max(5, Math.floor(
-      (baseDamage - opponent.defense / 2) * 
+      (baseDamage * attackBoost - activeOpponent.defense / 2) * 
       typeMultiplier * 
       weatherMultiplier * 
       critMultiplier * 
@@ -362,110 +619,142 @@ const Battle = () => {
       randomFactor
     ));
     
-    let newOpponentHealth = Math.max(0, opponent.currentHealth - damage);
+    const updatedOpponentTeam = [...opponentTeam];
+    let newOpponentHealth = Math.max(0, activeOpponent.currentHealth - damage);
     
     let messages = [];
-    messages.push(`${selectedPet.name} used ${skillToUse.name}! Dealt ${damage} damage!`);
+    messages.push(`${currentPet.name} used ${skillToUse.name}! Dealt ${damage} damage!`);
     
     if (isCrit) messages.push("💥 Critical hit!");
     if (typeMultiplier > 1) messages.push("✨ It's super effective!");
     if (typeMultiplier < 1) messages.push("💨 It's not very effective...");
     if (comboBonus > 1) messages.push(`🔥 ${comboCount + 1}x Combo!`);
     if (weatherMultiplier > 1) messages.push("☀️ Weather boosted!");
+    if (attackBoost > 1) messages.push("⚡ Attack boosted!");
 
     // Apply status effect
-    const statusResult = applyStatusEffect(selectedPet, opponent);
-    let updatedOpponent = { ...statusResult.defender, currentHealth: newOpponentHealth };
+    const statusResult = applyStatusEffect(currentPet, activeOpponent);
+    updatedOpponentTeam[activeOpponentIndex] = { ...statusResult.defender, currentHealth: newOpponentHealth };
     if (statusResult.log) messages.push(statusResult.log);
 
     setBattleLog((prev) => [...prev, ...messages]);
-    setOpponent(updatedOpponent);
+    setOpponentTeam(updatedOpponentTeam);
 
     if (newOpponentHealth <= 0) {
-      endBattle(true);
-      return;
+      updatedOpponentTeam[activeOpponentIndex].isFainted = true;
+      setOpponentTeam(updatedOpponentTeam);
+      setBattleLog((prev) => [...prev, `${activeOpponent.name} fainted!`]);
+      
+      const nextOpponent = updatedOpponentTeam.findIndex(p => !p.isFainted);
+      if (nextOpponent === -1) {
+        endBattle(true);
+        return;
+      } else {
+        setActiveOpponentIndex(nextOpponent);
+        setBattleLog((prev) => [...prev, `Next opponent: ${updatedOpponentTeam[nextOpponent].name}!`]);
+      }
     }
 
     // Process player's status effect
-    const playerStatusResult = processStatusEffect(selectedPet);
-    setSelectedPet(playerStatusResult.pet);
+    const playerStatusResult = processStatusEffect(currentPet);
+    updatedTeam[activePetIndex] = playerStatusResult.pet;
+    setSelectedTeam(updatedTeam);
     if (playerStatusResult.log) {
       setBattleLog((prev) => [...prev, playerStatusResult.log]);
     }
     if (playerStatusResult.pet.currentHealth <= 0) {
-      endBattle(false);
-      return;
+      updatedTeam[activePetIndex].isFainted = true;
+      setSelectedTeam(updatedTeam);
+      setBattleLog((prev) => [...prev, `${currentPet.name} fainted!`]);
+      
+      const nextPet = updatedTeam.findIndex(p => !p.isFainted);
+      if (nextPet === -1) {
+        endBattle(false);
+        return;
+      }
     }
 
     setTimeout(() => opponentTurn(), 1500);
   };
 
   const opponentTurn = () => {
-    if (!selectedPet || !opponent) return;
+    if (!activePet || !activeOpponent) return;
 
-    // Reset opponent defensive stances
-    setOpponent({ ...opponent, isDefending: false, isDodging: false });
+    const updatedOpponentTeam = [...opponentTeam];
+    const currentOpponent = { ...updatedOpponentTeam[activeOpponentIndex], isDefending: false, isDodging: false };
+    updatedOpponentTeam[activeOpponentIndex] = currentOpponent;
+    setOpponentTeam(updatedOpponentTeam);
 
     // Check if frozen
-    if (opponent.statusEffect === "freeze") {
-      const statusResult = processStatusEffect(opponent);
-      setOpponent(statusResult.pet);
+    if (currentOpponent.statusEffect === "freeze") {
+      const statusResult = processStatusEffect(currentOpponent);
+      updatedOpponentTeam[activeOpponentIndex] = statusResult.pet;
+      setOpponentTeam(updatedOpponentTeam);
       setBattleLog((prev) => [...prev, statusResult.log]);
       return;
     }
 
     // Check if paralyzed
-    if (opponent.statusEffect === "paralysis" && Math.random() < 0.25) {
-      const statusResult = processStatusEffect(opponent);
-      setOpponent(statusResult.pet);
+    if (currentOpponent.statusEffect === "paralysis" && Math.random() < 0.25) {
+      const statusResult = processStatusEffect(currentOpponent);
+      updatedOpponentTeam[activeOpponentIndex] = statusResult.pet;
+      setOpponentTeam(updatedOpponentTeam);
       setBattleLog((prev) => [...prev, statusResult.log]);
       return;
     }
 
-    // Check if player is dodging (75% chance to dodge)
-    if (selectedPet.isDodging && Math.random() < 0.75) {
-      setBattleLog((prev) => [...prev, `${selectedPet.name} dodged the attack!`]);
+    // Check if player is dodging
+    if (activePet.isDodging && Math.random() < 0.75) {
+      setBattleLog((prev) => [...prev, `${activePet.name} dodged the attack!`]);
       
-      // Counter attack with 50% power
-      const counterDamage = Math.floor(selectedPet.attack * 0.5);
-      const newOpponentHealth = Math.max(0, opponent.currentHealth - counterDamage);
-      setOpponent({ ...opponent, currentHealth: newOpponentHealth });
-      setBattleLog((prev) => [...prev, `${selectedPet.name} countered for ${counterDamage} damage!`]);
+      const counterDamage = Math.floor(activePet.attack * 0.5);
+      const newOpponentHealth = Math.max(0, currentOpponent.currentHealth - counterDamage);
+      updatedOpponentTeam[activeOpponentIndex].currentHealth = newOpponentHealth;
+      setOpponentTeam(updatedOpponentTeam);
+      setBattleLog((prev) => [...prev, `${activePet.name} countered for ${counterDamage} damage!`]);
       
       if (newOpponentHealth <= 0) {
-        endBattle(true);
+        updatedOpponentTeam[activeOpponentIndex].isFainted = true;
+        setBattleLog((prev) => [...prev, `${currentOpponent.name} fainted!`]);
+        
+        const nextOpponent = updatedOpponentTeam.findIndex(p => !p.isFainted);
+        if (nextOpponent === -1) {
+          endBattle(true);
+        } else {
+          setActiveOpponentIndex(nextOpponent);
+        }
       }
       return;
     }
 
-    const opponentSkill = opponent.skills.length > 0 
-      ? opponent.skills[Math.floor(Math.random() * opponent.skills.length)]
-      : { name: "Basic Attack", power: 20, element: opponent.element };
+    const opponentSkill = currentOpponent.skills.length > 0 
+      ? currentOpponent.skills[Math.floor(Math.random() * currentOpponent.skills.length)]
+      : { name: "Basic Attack", power: 20, element: currentOpponent.element };
     
-    // Calculate dodge (natural dodge chance)
-    const speedDiff = opponent.speed - selectedPet.speed;
+    // Natural dodge
+    const speedDiff = currentOpponent.speed - activePet.speed;
     const dodgeChance = Math.max(0, Math.min(0.3, speedDiff * 0.02));
     
     if (Math.random() < dodgeChance) {
-      setBattleLog((prev) => [...prev, `${selectedPet.name} dodged the attack!`]);
+      setBattleLog((prev) => [...prev, `${activePet.name} dodged the attack!`]);
       return;
     }
 
     // Calculate critical hit
-    const critChance = 0.15 + (opponent.speed * 0.001);
+    const critChance = 0.15 + (currentOpponent.speed * 0.001);
     const isCrit = Math.random() < critChance;
     const critMultiplier = isCrit ? 1.5 : 1;
 
-    const opponentBaseDamage = opponent.skills.length > 0 ? opponentSkill.power : opponent.attack;
-    const opponentTypeMultiplier = getTypeEffectiveness(opponentSkill.element, selectedPet.element);
+    const opponentBaseDamage = currentOpponent.skills.length > 0 ? opponentSkill.power : currentOpponent.attack;
+    const opponentTypeMultiplier = getTypeEffectiveness(opponentSkill.element, activePet.element);
     const weatherMultiplier = getWeatherBonus(opponentSkill.element, weather);
     const opponentRandomFactor = 0.85 + Math.random() * 0.3;
     
-    // Apply defense reduction if defending (reduce damage by 50%)
-    const defenseMultiplier = selectedPet.isDefending ? 0.5 : 1;
+    const defenseBoost = 1 + (activePet.defenseBoost / 100);
+    const defenseMultiplier = activePet.isDefending ? 0.5 : 1;
     
     const opponentDamage = Math.max(5, Math.floor(
-      (opponentBaseDamage - selectedPet.defense / 2) * 
+      (opponentBaseDamage - activePet.defense * defenseBoost / 2) * 
       opponentTypeMultiplier * 
       weatherMultiplier * 
       critMultiplier * 
@@ -473,44 +762,62 @@ const Battle = () => {
       opponentRandomFactor
     ));
     
-    let newPlayerHealth = Math.max(0, selectedPet.currentHealth - opponentDamage);
+    const updatedTeam = [...selectedTeam];
+    let newPlayerHealth = Math.max(0, activePet.currentHealth - opponentDamage);
     
     let messages = [];
-    messages.push(`${opponent.name} used ${opponentSkill.name}! Dealt ${opponentDamage} damage!`);
+    messages.push(`${currentOpponent.name} used ${opponentSkill.name}! Dealt ${opponentDamage} damage!`);
     
-    if (selectedPet.isDefending) messages.push("🛡️ Damage reduced by defense!");
+    if (activePet.isDefending) messages.push("🛡️ Damage reduced by defense!");
     if (isCrit) messages.push("💥 Critical hit!");
     if (opponentTypeMultiplier > 1) messages.push("✨ It's super effective!");
     if (opponentTypeMultiplier < 1) messages.push("💨 It's not very effective...");
     if (weatherMultiplier > 1) messages.push("☀️ Weather boosted!");
 
-    // Apply status effect
-    const statusResult = applyStatusEffect(opponent, selectedPet);
-    let updatedPlayer = { ...statusResult.defender, currentHealth: newPlayerHealth };
+    const statusResult = applyStatusEffect(currentOpponent, activePet);
+    updatedTeam[activePetIndex] = { ...statusResult.defender, currentHealth: newPlayerHealth };
     if (statusResult.log) messages.push(statusResult.log);
 
     setBattleLog((prev) => [...prev, ...messages]);
-    setSelectedPet(updatedPlayer);
+    setSelectedTeam(updatedTeam);
 
     if (newPlayerHealth <= 0) {
-      endBattle(false);
-      return;
+      updatedTeam[activePetIndex].isFainted = true;
+      setSelectedTeam(updatedTeam);
+      setBattleLog((prev) => [...prev, `${activePet.name} fainted!`]);
+      
+      const nextPet = updatedTeam.findIndex(p => !p.isFainted);
+      if (nextPet === -1) {
+        endBattle(false);
+        return;
+      } else {
+        setActivePetIndex(nextPet);
+        setBattleLog((prev) => [...prev, `Go, ${updatedTeam[nextPet].name}!`]);
+      }
     }
 
-    // Process opponent's status effect
-    const opponentStatusResult = processStatusEffect(opponent);
-    setOpponent(opponentStatusResult.pet);
+    const opponentStatusResult = processStatusEffect(currentOpponent);
+    updatedOpponentTeam[activeOpponentIndex] = opponentStatusResult.pet;
+    setOpponentTeam(updatedOpponentTeam);
     if (opponentStatusResult.log) {
       setBattleLog((prev) => [...prev, opponentStatusResult.log]);
     }
     if (opponentStatusResult.pet.currentHealth <= 0) {
-      endBattle(true);
+      updatedOpponentTeam[activeOpponentIndex].isFainted = true;
+      setBattleLog((prev) => [...prev, `${currentOpponent.name} fainted!`]);
+      
+      const nextOpponent = updatedOpponentTeam.findIndex(p => !p.isFainted);
+      if (nextOpponent === -1) {
+        endBattle(true);
+      } else {
+        setActiveOpponentIndex(nextOpponent);
+      }
     }
   };
 
   const endBattle = async (won: boolean) => {
-    const rewards = won ? 50 + selectedPet!.level * 10 : 10;
-    const experience = won ? 30 + selectedPet!.level * 5 : 5;
+    const rewards = won ? (50 + activePet.level * 10) * selectedTeam.length : 10;
+    const experience = won ? (30 + activePet.level * 5) * selectedTeam.length : 5;
 
     setBattleLog((prev) => [
       ...prev,
@@ -519,12 +826,11 @@ const Battle = () => {
     ]);
 
     if (user) {
-      // Update pet points
       const { data: profile } = await supabase
         .from("profiles")
         .select("pet_points")
         .eq("id", user.id)
-        .single();
+        .maybeSingle();
 
       if (profile) {
         await supabase
@@ -533,43 +839,31 @@ const Battle = () => {
           .eq("id", user.id);
       }
 
-      // Update pet experience
-      const { data: pet } = await supabase
-        .from("pets")
-        .select("experience, level")
-        .eq("id", selectedPet!.id)
-        .single();
-
-      if (pet) {
-        const newExp = pet.experience + experience;
-        const newLevel = Math.floor(newExp / 100) + 1;
-        await supabase
+      // Update all participating pets
+      for (const pet of selectedTeam) {
+        const { data: petData } = await supabase
           .from("pets")
-          .update({ experience: newExp, level: newLevel })
-          .eq("id", selectedPet!.id);
-      }
+          .select("experience, level")
+          .eq("id", pet.id)
+          .maybeSingle();
 
-      // Save battle record
-      await supabase.from("battles").insert([
-        {
-          attacker_id: user.id,
-          attacker_pet_id: selectedPet!.id,
-          defender_id: opponent?.id.startsWith("ai-") ? null : undefined,
-          defender_pet_id: opponent!.id,
-          is_ai_battle: opponent?.id.startsWith("ai-") || false,
-          winner_id: won ? user.id : null,
-          rewards_petpoints: rewards,
-          rewards_experience: experience,
-          status: "completed",
-          completed_at: new Date().toISOString(),
-        },
-      ]);
+        if (petData) {
+          const newExp = petData.experience + experience;
+          const newLevel = Math.floor(newExp / 100) + 1;
+          await supabase
+            .from("pets")
+            .update({ experience: newExp, level: newLevel })
+            .eq("id", pet.id);
+        }
+      }
     }
 
     setTimeout(() => {
       setInBattle(false);
-      setOpponent(null);
-      setSelectedPet(null);
+      setOpponentTeam([]);
+      setSelectedTeam([]);
+      setActiveOpponentIndex(0);
+      setActivePetIndex(0);
       setComboCount(0);
       setLastSkillElement(null);
       fetchMyPets();
@@ -627,38 +921,72 @@ const Battle = () => {
           {!inBattle ? (
             <Tabs defaultValue="select" className="space-y-6">
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="select">Select Pet</TabsTrigger>
+                <TabsTrigger value="select">Select Team (1-3)</TabsTrigger>
                 <TabsTrigger value="opponents">Find Opponent</TabsTrigger>
               </TabsList>
 
               <TabsContent value="select">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Choose Your Fighter</CardTitle>
+                    <CardTitle>Build Your Team ({selectedTeam.length}/3)</CardTitle>
                   </CardHeader>
-                  <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {myPets.map((pet) => (
-                      <Card
-                        key={pet.id}
-                        className={`cursor-pointer transition-all hover:shadow-elegant ${
-                          selectedPet?.id === pet.id ? "ring-2 ring-primary shadow-glow" : ""
-                        }`}
-                        onClick={() => setSelectedPet(calculateStats(pet))}
-                      >
-                        <CardContent className="p-4 text-center">
-                          <img
-                            src={`/src/assets/pet-${pet.species}.png`}
-                            alt={pet.name}
-                            className="w-24 h-24 mx-auto mb-2"
-                          />
-                          <h3 className="font-semibold">{pet.name}</h3>
-                          <p className="text-sm text-muted-foreground">Level {pet.level}</p>
-                          <Badge variant="secondary" className="mt-2 text-xs capitalize">
-                            {pet.element}
+                  <CardContent className="space-y-4">
+                    {selectedTeam.length > 0 && (
+                      <div className="flex gap-2 p-4 bg-muted/50 rounded-lg flex-wrap">
+                        {selectedTeam.map((pet, idx) => (
+                          <Badge key={pet.id} variant="default" className="text-sm">
+                            {idx + 1}. {pet.name}
                           </Badge>
-                        </CardContent>
-                      </Card>
-                    ))}
+                        ))}
+                      </div>
+                    )}
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {myPets.map((pet) => {
+                        const { multiplier, warnings } = getCareMultiplier(pet);
+                        const isSelected = selectedTeam.some(p => p.id === pet.id);
+                        const hasWarnings = warnings.some(w => w.includes('!'));
+                        
+                        return (
+                          <Card
+                            key={pet.id}
+                            className={`cursor-pointer transition-all ${
+                              isSelected ? "ring-2 ring-primary shadow-glow" : "hover:shadow-elegant"
+                            }`}
+                            onClick={() => togglePetSelection(pet)}
+                          >
+                            <CardContent className="p-4 text-center">
+                              <img
+                                src={`/src/assets/pet-${pet.species}.png`}
+                                alt={pet.name}
+                                className="w-24 h-24 mx-auto mb-2"
+                              />
+                              <h3 className="font-semibold">{pet.name}</h3>
+                              <p className="text-sm text-muted-foreground">Level {pet.level}</p>
+                              <Badge variant="secondary" className="mt-2 text-xs capitalize">
+                                {pet.element}
+                              </Badge>
+                              {hasWarnings && (
+                                <div className="mt-2">
+                                  <Badge variant="destructive" className="text-xs">
+                                    <AlertTriangle className="w-3 h-3 mr-1" />
+                                    Poor Condition
+                                  </Badge>
+                                </div>
+                              )}
+                              {multiplier >= 1.2 && (
+                                <div className="mt-2">
+                                  <Badge variant="default" className="text-xs">
+                                    <Sparkles className="w-3 h-3 mr-1" />
+                                    Peak Condition
+                                  </Badge>
+                                </div>
+                              )}
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
+                    </div>
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -673,8 +1001,8 @@ const Battle = () => {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <Button onClick={startAIBattle} disabled={!selectedPet} className="w-full">
-                        Fight Wild Pet
+                      <Button onClick={startAIBattle} disabled={selectedTeam.length === 0} className="w-full">
+                        Fight Wild Pets (Team Battle)
                       </Button>
                     </CardContent>
                   </Card>
@@ -683,31 +1011,13 @@ const Battle = () => {
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <Sword className="h-5 w-5" />
-                        PvP Battles
+                        PvP Battles (Coming Soon)
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {allPets.map((pet) => (
-                        <Card key={pet.id} className="hover:shadow-elegant transition-all">
-                          <CardContent className="p-4 text-center">
-                            <img
-                              src={`/src/assets/pet-${pet.species}.png`}
-                              alt={pet.name}
-                              className="w-20 h-20 mx-auto mb-2"
-                            />
-                            <h3 className="font-semibold">{pet.name}</h3>
-                            <p className="text-sm text-muted-foreground mb-2">Level {pet.level}</p>
-                            <Button
-                              onClick={() => startPvPBattle(pet)}
-                              disabled={!selectedPet}
-                              size="sm"
-                              className="w-full"
-                            >
-                              Challenge
-                            </Button>
-                          </CardContent>
-                        </Card>
-                      ))}
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground text-center">
+                        Multiplayer team battles will be available soon!
+                      </p>
                     </CardContent>
                   </Card>
                 </div>
@@ -717,7 +1027,7 @@ const Battle = () => {
             <Card>
               <CardHeader>
                 <div className="flex justify-between items-center">
-                  <CardTitle className="text-center flex-1">Battle in Progress!</CardTitle>
+                  <CardTitle className="text-center flex-1">Team Battle!</CardTitle>
                   <Badge variant="outline" className="flex items-center gap-1">
                     {getWeatherIcon()}
                     <span className="capitalize">{weather}</span>
@@ -725,67 +1035,116 @@ const Battle = () => {
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
+                {/* Team Display */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-center">Your Team</h4>
+                    <div className="flex gap-2 justify-center">
+                      {selectedTeam.map((pet, idx) => (
+                        <button
+                          key={pet.id}
+                          onClick={() => switchPet(idx)}
+                          disabled={pet.isFainted || idx === activePetIndex}
+                          className={`w-12 h-12 rounded-full border-2 flex items-center justify-center text-xs font-bold transition-all ${
+                            idx === activePetIndex
+                              ? "border-primary bg-primary text-primary-foreground scale-110"
+                              : pet.isFainted
+                              ? "border-muted bg-muted opacity-50"
+                              : "border-border hover:border-primary"
+                          }`}
+                        >
+                          {pet.name.charAt(0)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-center">Opponents</h4>
+                    <div className="flex gap-2 justify-center">
+                      {opponentTeam.map((pet, idx) => (
+                        <div
+                          key={pet.id}
+                          className={`w-12 h-12 rounded-full border-2 flex items-center justify-center text-xs font-bold ${
+                            idx === activeOpponentIndex
+                              ? "border-destructive bg-destructive text-destructive-foreground scale-110"
+                              : pet.isFainted
+                              ? "border-muted bg-muted opacity-50"
+                              : "border-border"
+                          }`}
+                        >
+                          {pet.name.charAt(0)}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Active Pets */}
                 <div className="grid grid-cols-2 gap-8">
                   <div className="text-center space-y-2">
                     <img
-                      src={`/src/assets/pet-${selectedPet?.species}.png`}
-                      alt={selectedPet?.name}
+                      src={`/src/assets/pet-${activePet?.species}.png`}
+                      alt={activePet?.name}
                       className="w-32 h-32 mx-auto"
                     />
-                    <h3 className="font-bold">{selectedPet?.name}</h3>
-                    <p className="text-sm text-muted-foreground">Level {selectedPet?.level}</p>
-                    <Badge variant="secondary" className="text-xs capitalize">{selectedPet?.element}</Badge>
-                    {selectedPet?.statusEffect && getStatusBadge(selectedPet.statusEffect)}
+                    <h3 className="font-bold">{activePet?.name}</h3>
+                    <p className="text-sm text-muted-foreground">Level {activePet?.level}</p>
+                    <Badge variant="secondary" className="text-xs capitalize">{activePet?.element}</Badge>
+                    {activePet?.statusEffect && getStatusBadge(activePet.statusEffect)}
+                    {activePet?.boostTurns > 0 && (
+                      <Badge variant="default" className="text-xs">⚡ Boosted ({activePet.boostTurns})</Badge>
+                    )}
                     <div className="space-y-1">
                       <div className="flex items-center justify-between text-xs">
                         <span>HP</span>
                         <span>
-                          {selectedPet?.currentHealth}/{selectedPet?.maxHealth}
+                          {activePet?.currentHealth}/{activePet?.maxHealth}
                         </span>
                       </div>
                       <Progress
-                        value={(selectedPet!.currentHealth / selectedPet!.maxHealth) * 100}
+                        value={(activePet ? activePet.currentHealth / activePet.maxHealth : 0) * 100}
                         className="bg-stat-health/20"
                       />
                     </div>
                     <div className="flex justify-center gap-2 text-sm">
                       <span className="flex items-center gap-1">
-                        <Sword className="h-4 w-4" /> {selectedPet?.attack}
+                        <Sword className="h-4 w-4" /> {activePet?.attack}
                       </span>
                       <span className="flex items-center gap-1">
-                        <Shield className="h-4 w-4" /> {selectedPet?.defense}
+                        <Shield className="h-4 w-4" /> {activePet?.defense}
                       </span>
                     </div>
                   </div>
 
                   <div className="text-center space-y-2">
                     <img
-                      src={`/src/assets/pet-${opponent?.species}.png`}
-                      alt={opponent?.name}
+                      src={`/src/assets/pet-${activeOpponent?.species}.png`}
+                      alt={activeOpponent?.name}
                       className="w-32 h-32 mx-auto"
                     />
-                    <h3 className="font-bold">{opponent?.name}</h3>
-                    <p className="text-sm text-muted-foreground">Level {opponent?.level}</p>
-                    <Badge variant="secondary" className="text-xs capitalize">{opponent?.element}</Badge>
-                    {opponent?.statusEffect && getStatusBadge(opponent.statusEffect)}
+                    <h3 className="font-bold">{activeOpponent?.name}</h3>
+                    <p className="text-sm text-muted-foreground">Level {activeOpponent?.level}</p>
+                    <Badge variant="secondary" className="text-xs capitalize">{activeOpponent?.element}</Badge>
+                    {activeOpponent?.statusEffect && getStatusBadge(activeOpponent.statusEffect)}
                     <div className="space-y-1">
                       <div className="flex items-center justify-between text-xs">
                         <span>HP</span>
                         <span>
-                          {opponent?.currentHealth}/{opponent?.maxHealth}
+                          {activeOpponent?.currentHealth}/{activeOpponent?.maxHealth}
                         </span>
                       </div>
                       <Progress
-                        value={(opponent!.currentHealth / opponent!.maxHealth) * 100}
+                        value={(activeOpponent ? activeOpponent.currentHealth / activeOpponent.maxHealth : 0) * 100}
                         className="bg-stat-health/20"
                       />
                     </div>
                     <div className="flex justify-center gap-2 text-sm">
                       <span className="flex items-center gap-1">
-                        <Sword className="h-4 w-4" /> {opponent?.attack}
+                        <Sword className="h-4 w-4" /> {activeOpponent?.attack}
                       </span>
                       <span className="flex items-center gap-1">
-                        <Shield className="h-4 w-4" /> {opponent?.defense}
+                        <Shield className="h-4 w-4" /> {activeOpponent?.defense}
                       </span>
                     </div>
                   </div>
@@ -818,7 +1177,7 @@ const Battle = () => {
                   <div className="grid grid-cols-2 gap-3">
                     <Button
                       onClick={() => attack()}
-                      disabled={!selectedPet || !opponent || selectedPet.currentHealth <= 0 || opponent.currentHealth <= 0}
+                      disabled={!activePet || !activeOpponent || activePet.currentHealth <= 0 || activeOpponent.currentHealth <= 0}
                       variant="default"
                       size="lg"
                     >
@@ -828,7 +1187,7 @@ const Battle = () => {
 
                     <Button
                       onClick={defend}
-                      disabled={!selectedPet || !opponent || selectedPet.currentHealth <= 0 || opponent.currentHealth <= 0}
+                      disabled={!activePet || !activeOpponent || activePet.currentHealth <= 0 || activeOpponent.currentHealth <= 0}
                       variant="secondary"
                       size="lg"
                     >
@@ -838,41 +1197,61 @@ const Battle = () => {
 
                     <Button
                       onClick={dodge}
-                      disabled={!selectedPet || !opponent || selectedPet.currentHealth <= 0 || opponent.currentHealth <= 0}
+                      disabled={!activePet || !activeOpponent || activePet.currentHealth <= 0 || activeOpponent.currentHealth <= 0 || dodgeCooldown > 0}
                       variant="secondary"
                       size="lg"
                     >
                       <MoveRight className="mr-2 h-5 w-5" />
-                      Dodge
+                      Dodge {dodgeCooldown > 0 && `(${dodgeCooldown})`}
                     </Button>
 
                     <Button
                       onClick={specialAttack}
-                      disabled={!selectedPet || !opponent || selectedPet.currentHealth <= 0 || opponent.currentHealth <= 0}
+                      disabled={!activePet || !activeOpponent || activePet.currentHealth <= 0 || activeOpponent.currentHealth <= 0 || specialCooldown > 0}
                       variant="default"
                       size="lg"
                       className="bg-gradient-to-r from-primary to-secondary"
                     >
                       <Sparkles className="mr-2 h-5 w-5" />
-                      Special
+                      Special {specialCooldown > 0 && `(${specialCooldown})`}
                     </Button>
                   </div>
 
-                  {selectedPet && selectedPet.skills.length > 0 && (
+                  {activePet && activePet.skills.length > 0 && (
                     <div className="space-y-2">
                       <h4 className="font-semibold text-center text-sm">Element Skills</h4>
                       <div className="grid grid-cols-2 gap-2">
-                        {selectedPet.skills.map((skill, index) => (
+                        {activePet.skills.map((skill, index) => (
                           <Button
                             key={index}
                             onClick={() => attack(skill)}
-                            disabled={!selectedPet || !opponent || selectedPet.currentHealth <= 0 || opponent.currentHealth <= 0}
+                            disabled={!activePet || !activeOpponent || activePet.currentHealth <= 0 || activeOpponent.currentHealth <= 0}
                             variant="outline"
                             size="sm"
                           >
                             <Zap className="mr-1 h-4 w-4" />
                             {skill.name}
                             <span className="ml-1 text-xs">({skill.power})</span>
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {battleItems.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="font-semibold text-center text-sm">Items</h4>
+                      <div className="grid grid-cols-3 gap-2">
+                        {battleItems.slice(0, 6).map((item) => (
+                          <Button
+                            key={item.id}
+                            onClick={() => useItem(item)}
+                            disabled={!activePet || !activeOpponent}
+                            variant="outline"
+                            size="sm"
+                          >
+                            <Package className="mr-1 h-3 w-3" />
+                            <span className="text-xs">{item.name} ({item.quantity})</span>
                           </Button>
                         ))}
                       </div>

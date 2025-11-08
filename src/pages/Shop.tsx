@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Navbar } from "@/components/ui/navbar";
+import { Footer } from "@/components/ui/footer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Coins, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
@@ -51,7 +52,7 @@ const Shop = () => {
           .from("profiles")
           .select("pet_points")
           .eq("id", user.id)
-          .single();
+          .maybeSingle();
 
         if (profileError) throw profileError;
         setProfile(profileData);
@@ -80,7 +81,7 @@ const Shop = () => {
         .select("*")
         .eq("user_id", user.id)
         .eq("item_id", item.id)
-        .single();
+        .maybeSingle();
 
       if (existing) {
         // Update quantity
@@ -114,11 +115,12 @@ const Shop = () => {
 
   if (loading) {
     return (
-      <div>
+      <div className="min-h-screen flex flex-col">
         <Navbar />
-        <div className="flex items-center justify-center min-h-[80vh]">
+        <div className="flex-1 flex items-center justify-center">
           <p className="text-lg text-muted-foreground">Loading shop...</p>
         </div>
+        <Footer />
       </div>
     );
   }
@@ -126,9 +128,9 @@ const Shop = () => {
   const categories = Array.from(new Set(items.map((item) => item.category)));
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen flex flex-col">
       <Navbar />
-      <div className="container mx-auto px-4 py-8">
+      <div className="flex-1 container mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-4xl font-bold text-gradient mb-2">Pet Shop</h1>
@@ -164,6 +166,7 @@ const Shop = () => {
           ))}
         </Tabs>
       </div>
+      <Footer />
     </div>
   );
 };
@@ -188,8 +191,8 @@ const ItemGrid = ({
               <p className="text-sm text-muted-foreground mb-2">{item.description}</p>
               {item.effect_type && (
                 <p className="text-xs text-primary font-medium capitalize">
-                  {item.effect_type} {item.effect_value > 0 ? "+" : ""}
-                  {item.effect_value}
+                  {item.effect_type.replace(/_/g, ' ')} {item.effect_value > 0 ? "+" : ""}
+                  {item.effect_value}{item.effect_type.includes('boost') ? '%' : ''}
                 </p>
               )}
             </div>
