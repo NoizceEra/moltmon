@@ -8,7 +8,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Navbar } from "@/components/ui/navbar";
 import { Badge } from "@/components/ui/badge";
-import { Coins, ShoppingCart } from "lucide-react";
+import { Coins, ShoppingCart, Sparkles } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import petGorilla from "@/assets/pet-gorilla.png";
 
 interface MarketplaceListing {
   id: string;
@@ -27,8 +30,11 @@ interface MarketplaceListing {
 
 const Marketplace = () => {
   const [listings, setListings] = useState<MarketplaceListing[]>([]);
+  const [premiumPets, setPremiumPets] = useState<any[]>([]);
   const [userPoints, setUserPoints] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [purchasingPremium, setPurchasingPremium] = useState<string | null>(null);
+  const [premiumPetName, setPremiumPetName] = useState("");
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -44,6 +50,17 @@ const Marketplace = () => {
 
   const fetchData = async () => {
     setLoading(true);
+
+    // Fetch premium pets (marketplace exclusive)
+    const { data: premiumData } = await supabase
+      .from("species_catalog")
+      .select("*")
+      .gte("unlock_level", 999)
+      .eq("is_active", true);
+
+    if (premiumData) {
+      setPremiumPets(premiumData);
+    }
 
     // Fetch listings
     const { data: listingsData, error: listingsError } = await supabase
@@ -91,6 +108,69 @@ const Marketplace = () => {
     }
 
     setLoading(false);
+  };
+
+  const handlePurchasePremium = async (speciesId: string, price: number) => {
+    if (!premiumPetName) {
+      toast({
+        title: "Name required",
+        description: "Please enter a name for your pet.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (price > userPoints) {
+      toast({
+        title: "Insufficient PetPoints",
+        description: "You don't have enough PetPoints for this purchase.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const species = premiumPets.find(p => p.id === speciesId);
+      
+      // Deduct points
+      const { error: pointsError } = await supabase
+        .from("profiles")
+        .update({ pet_points: userPoints - price })
+        .eq("id", user!.id);
+
+      if (pointsError) throw pointsError;
+
+      // Create pet
+      const { error: petError } = await supabase
+        .from("pets")
+        .insert({
+          owner_id: user!.id,
+          name: premiumPetName,
+          species: speciesId,
+          element: species?.element || 'water',
+          hunger: 50,
+          happiness: 50,
+          health: 100,
+          energy: 100,
+        });
+
+      if (petError) throw petError;
+
+      toast({
+        title: "Purchase successful!",
+        description: `${premiumPetName} has joined your collection!`,
+      });
+
+      setPurchasingPremium(null);
+      setPremiumPetName("");
+      fetchData();
+    } catch (error: any) {
+      toast({
+        title: "Purchase failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
   const handlePurchase = async (listingId: string, price: number) => {
@@ -151,6 +231,89 @@ const Marketplace = () => {
           </TabsList>
 
           <TabsContent value="browse">
+            {/* Premium Pets Section */}
+            {premiumPets.length > 0 && (
+              <div className="mb-8">
+                <div className="flex items-center gap-2 mb-4">
+                  <Sparkles className="w-6 h-6 text-accent" />
+                  <h2 className="text-2xl font-bold">Premium Pets</h2>
+                  <Badge variant="secondary" className="bg-accent/20">Exclusive</Badge>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {premiumPets.map((pet) => (
+                    <Card key={pet.id} className="border-accent/50 shadow-lg">
+                      <CardHeader>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <CardTitle className="flex items-center gap-2">
+                              {pet.display_name}
+                              <Sparkles className="w-4 h-4 text-accent" />
+                            </CardTitle>
+                            <CardDescription>{pet.description}</CardDescription>
+                          </div>
+                          <Badge className="bg-accent">{pet.element}</Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <img 
+                          src={petGorilla} 
+                          alt={pet.display_name}
+                          className="w-full h-48 object-contain mb-4"
+                        />
+                        {purchasingPremium === pet.id ? (
+                          <div className="space-y-2">
+                            <Label htmlFor="premium-name">Name your pet</Label>
+                            <Input
+                              id="premium-name"
+                              value={premiumPetName}
+                              onChange={(e) => setPremiumPetName(e.target.value)}
+                              placeholder="Enter a name..."
+                              maxLength={20}
+                            />
+                          </div>
+                        ) : (
+                          <div className="space-y-2 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Rarity</span>
+                              <span className="font-bold text-accent">{pet.rarity?.toUpperCase()}</span>
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                      <CardFooter className="flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <Coins className="w-5 h-5 text-primary" />
+                          <span className="text-2xl font-bold">500</span>
+                        </div>
+                        {purchasingPremium === pet.id ? (
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                setPurchasingPremium(null);
+                                setPremiumPetName("");
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                            <Button onClick={() => handlePurchasePremium(pet.id, 500)}>
+                              Confirm
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button onClick={() => setPurchasingPremium(pet.id)}>
+                            Buy Now
+                          </Button>
+                        )}
+                      </CardFooter>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Regular Listings */}
+            <h2 className="text-2xl font-bold mb-4">Player Listings</h2>
             {loading ? (
               <div className="text-center py-12">Loading...</div>
             ) : listings.length === 0 ? (

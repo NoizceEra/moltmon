@@ -37,7 +37,8 @@ const Adopt = () => {
       const { data, error } = await supabase
         .from("species_catalog")
         .select("*")
-        .eq("is_active", true);
+        .eq("is_active", true)
+        .lt("unlock_level", 999);
 
       if (error) {
         toast.error("Error loading species: " + error.message);
