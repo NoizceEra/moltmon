@@ -11,6 +11,12 @@ import { Sword, Shield, Zap, Cloud, Flame, Droplet, Mountain, Wind, Sparkles, Mo
 import { Navbar } from "@/components/ui/navbar";
 import { Footer } from "@/components/ui/footer";
 import { trackQuestProgress } from "@/lib/questTracker";
+import petAqua from "@/assets/pet-aqua.png";
+import petCloud from "@/assets/pet-cloud.png";
+import petFluff from "@/assets/pet-fluff.png";
+import petGorilla from "@/assets/pet-gorilla.png";
+import petSpark from "@/assets/pet-spark.png";
+import petTerra from "@/assets/pet-terra.png";
 
 interface Skill {
   name: string;
@@ -86,6 +92,18 @@ const Battle = () => {
 
   const activePet = selectedTeam[activePetIndex];
   const activeOpponent = opponentTeam[activeOpponentIndex];
+
+  const getPetImage = (species: string) => {
+    const imageMap: Record<string, string> = {
+      aqua: petAqua,
+      cloud: petCloud,
+      fluff: petFluff,
+      gorilla: petGorilla,
+      spark: petSpark,
+      terra: petTerra,
+    };
+    return imageMap[species.toLowerCase()] || petFluff;
+  };
 
   useEffect(() => {
     if (user) {
@@ -1086,7 +1104,7 @@ const Battle = () => {
                           >
                             <CardContent className="p-4 text-center">
                               <img
-                                src={`/src/assets/pet-${pet.species}.png`}
+                                src={getPetImage(pet.species)}
                                 alt={pet.name}
                                 className="w-24 h-24 mx-auto mb-2"
                               />
@@ -1213,7 +1231,7 @@ const Battle = () => {
                 <div className="grid grid-cols-2 gap-8">
                   <div className="text-center space-y-2">
                     <img
-                      src={`/src/assets/pet-${activePet?.species}.png`}
+                      src={activePet ? getPetImage(activePet.species) : petFluff}
                       alt={activePet?.name}
                       className="w-32 h-32 mx-auto"
                     />
@@ -1248,7 +1266,7 @@ const Battle = () => {
 
                   <div className="text-center space-y-2">
                     <img
-                      src={`/src/assets/pet-${activeOpponent?.species}.png`}
+                      src={activeOpponent ? getPetImage(activeOpponent.species) : petFluff}
                       alt={activeOpponent?.name}
                       className="w-32 h-32 mx-auto"
                     />

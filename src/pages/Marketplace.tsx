@@ -11,7 +11,12 @@ import { Badge } from "@/components/ui/badge";
 import { Coins, ShoppingCart, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import petAqua from "@/assets/pet-aqua.png";
+import petCloud from "@/assets/pet-cloud.png";
+import petFluff from "@/assets/pet-fluff.png";
 import petGorilla from "@/assets/pet-gorilla.png";
+import petSpark from "@/assets/pet-spark.png";
+import petTerra from "@/assets/pet-terra.png";
 
 interface MarketplaceListing {
   id: string;
@@ -38,6 +43,18 @@ const Marketplace = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  const getPetImage = (species: string) => {
+    const imageMap: Record<string, string> = {
+      aqua: petAqua,
+      cloud: petCloud,
+      fluff: petFluff,
+      gorilla: petGorilla,
+      spark: petSpark,
+      terra: petTerra,
+    };
+    return imageMap[species.toLowerCase()] || petFluff;
+  };
 
   useEffect(() => {
     if (!user) {
@@ -277,7 +294,7 @@ const Marketplace = () => {
                       </CardHeader>
                       <CardContent>
                         <img 
-                          src={petGorilla} 
+                          src={getPetImage(pet.id)} 
                           alt={pet.display_name}
                           className="w-full h-48 object-contain mb-4"
                         />
@@ -360,6 +377,11 @@ const Marketplace = () => {
                       </div>
                     </CardHeader>
                     <CardContent>
+                      <img 
+                        src={getPetImage(listing.pets.species)} 
+                        alt={listing.pets.name}
+                        className="w-full h-40 object-contain mb-4"
+                      />
                       <div className="space-y-2">
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Health</span>
@@ -418,6 +440,11 @@ const Marketplace = () => {
                       </div>
                     </CardHeader>
                     <CardContent>
+                      <img 
+                        src={getPetImage(listing.pets.species)} 
+                        alt={listing.pets.name}
+                        className="w-full h-40 object-contain mb-4"
+                      />
                       <div className="space-y-2">
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Health</span>
