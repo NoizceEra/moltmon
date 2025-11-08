@@ -130,6 +130,27 @@ const Marketplace = () => {
     }
 
     try {
+      // Check roster space
+      const { count: petCount } = await supabase
+        .from("pets")
+        .select("*", { count: "exact", head: true })
+        .eq("owner_id", user!.id);
+
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("max_pets")
+        .eq("id", user!.id)
+        .single();
+
+      if (petCount && profileData && petCount >= profileData.max_pets) {
+        toast({
+          title: "Roster full",
+          description: `You can only have ${profileData.max_pets} pets. Sell some pets to make space.`,
+          variant: "destructive",
+        });
+        return;
+      }
+
       const species = premiumPets.find(p => p.id === speciesId);
       
       // Deduct points
@@ -369,13 +390,58 @@ const Marketplace = () => {
           </TabsContent>
 
           <TabsContent value="my-listings">
-            <Card>
-              <CardContent className="py-12 text-center">
-                <p className="text-muted-foreground">
-                  Listing functionality coming soon! Visit your pet's detail page to list it for sale.
-                </p>
-              </CardContent>
-            </Card>
+            {loading ? (
+              <div className="text-center py-12">Loading...</div>
+            ) : listings.filter(l => l.seller_id === user.id).length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <ShoppingCart className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+                  <p className="text-lg text-muted-foreground mb-2">You have no active listings</p>
+                  <p className="text-sm text-muted-foreground">
+                    Visit your pet's detail page to list it for sale (50 PP listing fee)
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {listings.filter(l => l.seller_id === user.id).map((listing) => (
+                  <Card key={listing.id}>
+                    <CardHeader>
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <CardTitle>{listing.pets.name}</CardTitle>
+                          <CardDescription>
+                            {listing.pets.species} • Level {listing.pets.level}
+                          </CardDescription>
+                        </div>
+                        <Badge variant="secondary">{listing.pets.element}</Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Health</span>
+                          <span className="font-medium">{listing.pets.health}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Status</span>
+                          <Badge variant="outline">Listed</Badge>
+                        </div>
+                      </div>
+                    </CardContent>
+                    <CardFooter className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <Coins className="w-5 h-5 text-primary" />
+                        <span className="text-2xl font-bold">{listing.price}</span>
+                      </div>
+                      <Button variant="outline" disabled>
+                        Listed
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                ))}
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </main>

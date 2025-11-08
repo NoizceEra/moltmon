@@ -6,10 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Navbar } from "@/components/ui/navbar";
 import { Progress } from "@/components/ui/progress";
-import { UtensilsCrossed, Gamepad2, Sparkles, Moon, ArrowLeft, Palette, Package } from "lucide-react";
+import { UtensilsCrossed, Gamepad2, Sparkles, Moon, ArrowLeft, Palette, Package, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { trackQuestProgress } from "@/lib/questTracker";
 import petFluff from "@/assets/pet-fluff.png";
 import petSpark from "@/assets/pet-spark.png";
@@ -66,6 +67,10 @@ const PetDetail = () => {
   const [pet, setPet] = useState<Pet | null>(null);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [listingPrice, setListingPrice] = useState("");
+  const [isListing, setIsListing] = useState(false);
+  const [userPoints, setUserPoints] = useState(0);
+  const [isAlreadyListed, setIsAlreadyListed] = useState(false);
 
   useEffect(() => {
     if (!user || !id) {
@@ -102,8 +107,25 @@ const PetDetail = () => {
         `)
         .eq("user_id", user.id);
 
+      // Check if pet is already listed
+      const { data: listingData } = await supabase
+        .from("marketplace_listings")
+        .select("id")
+        .eq("pet_id", id)
+        .eq("status", "active")
+        .single();
+
+      // Get user points
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("pet_points")
+        .eq("id", user.id)
+        .single();
+
       setPet(petData);
       setInventory(inventoryData || []);
+      setIsAlreadyListed(!!listingData);
+      setUserPoints(profileData?.pet_points || 0);
       setLoading(false);
     };
 
@@ -253,6 +275,39 @@ const PetDetail = () => {
     toast.success("Pet color updated!");
   };
 
+  const handleListPet = async () => {
+    if (!pet || !user) return;
+
+    const price = parseInt(listingPrice);
+    if (isNaN(price) || price <= 0) {
+      toast.error("Please enter a valid price");
+      return;
+    }
+
+    if (userPoints < 50) {
+      toast.error("You need 50 PP to list a pet (listing fee)");
+      return;
+    }
+
+    try {
+      const { error } = await supabase.rpc("list_pet_on_marketplace", {
+        p_user_id: user.id,
+        p_pet_id: pet.id,
+        p_price: price,
+      });
+
+      if (error) throw error;
+
+      toast.success("Pet listed successfully! 50 PP listing fee deducted.");
+      setIsAlreadyListed(true);
+      setUserPoints(userPoints - 50);
+      setListingPrice("");
+      setIsListing(false);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to list pet");
+    }
+  };
+
   if (loading || !pet) {
     return (
       <div>
@@ -318,7 +373,7 @@ const PetDetail = () => {
             {/* Tabs for Actions, Items, Customize */}
             <Card className="p-6">
               <Tabs defaultValue="actions" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-4">
                   <TabsTrigger value="actions">Actions</TabsTrigger>
                   <TabsTrigger value="items">
                     <Package className="w-4 h-4 mr-2" />
@@ -327,6 +382,10 @@ const PetDetail = () => {
                   <TabsTrigger value="customize">
                     <Palette className="w-4 h-4 mr-2" />
                     Customize
+                  </TabsTrigger>
+                  <TabsTrigger value="sell">
+                    <DollarSign className="w-4 h-4 mr-2" />
+                    Sell
                   </TabsTrigger>
                 </TabsList>
 
@@ -427,6 +486,76 @@ const PetDetail = () => {
                       </SelectContent>
                     </Select>
                   </div>
+                </TabsContent>
+
+                <TabsContent value="sell" className="space-y-4">
+                  {isAlreadyListed ? (
+                    <div className="text-center py-8">
+                      <DollarSign className="w-12 h-12 mx-auto mb-4 text-primary" />
+                      <p className="text-lg font-medium mb-2">Pet is listed on marketplace</p>
+                      <p className="text-sm text-muted-foreground">
+                        Visit the marketplace to manage your listing
+                      </p>
+                      <Button
+                        className="mt-4"
+                        onClick={() => navigate("/marketplace")}
+                      >
+                        Go to Marketplace
+                      </Button>
+                    </div>
+                  ) : isListing ? (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-sm font-medium mb-2 block">
+                          Price (PetPoints)
+                        </label>
+                        <Input
+                          type="number"
+                          placeholder="Enter price..."
+                          value={listingPrice}
+                          onChange={(e) => setListingPrice(e.target.value)}
+                          min="1"
+                        />
+                      </div>
+                      <div className="bg-muted p-3 rounded-lg text-sm">
+                        <p className="font-medium mb-1">Listing Fee: 50 PP</p>
+                        <p className="text-muted-foreground">
+                          A 5% marketplace fee will be deducted from the sale price when sold.
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setIsListing(false);
+                            setListingPrice("");
+                          }}
+                          className="flex-1"
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={handleListPet}
+                          disabled={!listingPrice}
+                          className="flex-1"
+                        >
+                          Confirm Listing
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <DollarSign className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground mb-4">
+                        List {pet.name} on the marketplace for other players to buy.
+                        <br />
+                        <span className="text-xs">Listing fee: 50 PP • Marketplace fee: 5%</span>
+                      </p>
+                      <Button onClick={() => setIsListing(true)}>
+                        List on Marketplace
+                      </Button>
+                    </div>
+                  )}
                 </TabsContent>
               </Tabs>
             </Card>

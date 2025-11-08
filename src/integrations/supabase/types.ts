@@ -379,6 +379,7 @@ export type Database = {
         Row: {
           created_at: string | null
           id: string
+          max_pets: number
           pet_points: number | null
           updated_at: string | null
           username: string
@@ -386,6 +387,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           id: string
+          max_pets?: number
           pet_points?: number | null
           updated_at?: string | null
           username: string
@@ -393,6 +395,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           id?: string
+          max_pets?: number
           pet_points?: number | null
           updated_at?: string | null
           username?: string
@@ -634,6 +637,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      list_pet_on_marketplace: {
+        Args: { p_pet_id: string; p_price: number; p_user_id: string }
+        Returns: Json
       }
       purchase_marketplace_pet: {
         Args: { p_buyer_id: string; p_listing_id: string }
