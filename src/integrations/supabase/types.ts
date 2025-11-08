@@ -183,6 +183,50 @@ export type Database = {
           },
         ]
       }
+      marketplace_listings: {
+        Row: {
+          created_at: string | null
+          id: string
+          listed_at: string | null
+          pet_id: string
+          price: number
+          seller_id: string
+          sold_at: string | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          listed_at?: string | null
+          pet_id: string
+          price: number
+          seller_id: string
+          sold_at?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          listed_at?: string | null
+          pet_id?: string
+          price?: number
+          seller_id?: string
+          sold_at?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketplace_listings_pet_id_fkey"
+            columns: ["pet_id"]
+            isOneToOne: false
+            referencedRelation: "pets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           content: string
@@ -206,6 +250,64 @@ export type Database = {
           username?: string
         }
         Relationships: []
+      }
+      pet_transfers: {
+        Row: {
+          created_at: string | null
+          from_user_id: string | null
+          id: string
+          marketplace_listing_id: string | null
+          pet_id: string
+          price: number | null
+          to_user_id: string
+          trade_offer_id: string | null
+          transfer_type: string
+        }
+        Insert: {
+          created_at?: string | null
+          from_user_id?: string | null
+          id?: string
+          marketplace_listing_id?: string | null
+          pet_id: string
+          price?: number | null
+          to_user_id: string
+          trade_offer_id?: string | null
+          transfer_type: string
+        }
+        Update: {
+          created_at?: string | null
+          from_user_id?: string | null
+          id?: string
+          marketplace_listing_id?: string | null
+          pet_id?: string
+          price?: number | null
+          to_user_id?: string
+          trade_offer_id?: string | null
+          transfer_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pet_transfers_marketplace_listing_id_fkey"
+            columns: ["marketplace_listing_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_listings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pet_transfers_pet_id_fkey"
+            columns: ["pet_id"]
+            isOneToOne: false
+            referencedRelation: "pets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pet_transfers_trade_offer_id_fkey"
+            columns: ["trade_offer_id"]
+            isOneToOne: false
+            referencedRelation: "trade_offers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pets: {
         Row: {
@@ -333,6 +435,102 @@ export type Database = {
         }
         Relationships: []
       }
+      species_catalog: {
+        Row: {
+          base_stats: Json | null
+          created_at: string | null
+          description: string
+          display_name: string
+          element: string
+          id: string
+          image_url: string | null
+          is_active: boolean | null
+          name: string
+          rarity: string | null
+          unlock_level: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          base_stats?: Json | null
+          created_at?: string | null
+          description: string
+          display_name: string
+          element: string
+          id: string
+          image_url?: string | null
+          is_active?: boolean | null
+          name: string
+          rarity?: string | null
+          unlock_level?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          base_stats?: Json | null
+          created_at?: string | null
+          description?: string
+          display_name?: string
+          element?: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean | null
+          name?: string
+          rarity?: string | null
+          unlock_level?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      trade_offers: {
+        Row: {
+          created_at: string | null
+          expires_at: string | null
+          id: string
+          offerer_id: string
+          offerer_pet_id: string
+          recipient_id: string
+          recipient_pet_id: string
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          offerer_id: string
+          offerer_pet_id: string
+          recipient_id: string
+          recipient_pet_id: string
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          offerer_id?: string
+          offerer_pet_id?: string
+          recipient_id?: string
+          recipient_pet_id?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trade_offers_offerer_pet_id_fkey"
+            columns: ["offerer_pet_id"]
+            isOneToOne: false
+            referencedRelation: "pets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trade_offers_recipient_pet_id_fkey"
+            columns: ["recipient_pet_id"]
+            isOneToOne: false
+            referencedRelation: "pets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_quest_progress: {
         Row: {
           assigned_at: string
@@ -380,6 +578,27 @@ export type Database = {
           },
         ]
       }
+      user_roles: {
+        Row: {
+          created_at: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       leaderboard: {
@@ -393,6 +612,10 @@ export type Database = {
       }
     }
     Functions: {
+      accept_trade_offer: {
+        Args: { p_offer_id: string; p_recipient_id: string }
+        Returns: Json
+      }
       assign_daily_quests_to_user: {
         Args: { p_user_id: string }
         Returns: undefined
@@ -405,12 +628,24 @@ export type Database = {
         }
         Returns: Json
       }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      purchase_marketplace_pet: {
+        Args: { p_buyer_id: string; p_listing_id: string }
+        Returns: Json
+      }
       purchase_shop_item: {
         Args: { p_item_id: string; p_item_price: number; p_user_id: string }
         Returns: Json
       }
     }
     Enums: {
+      app_role: "admin" | "moderator" | "user"
       quest_status: "active" | "completed" | "claimed"
       quest_type: "pet_care" | "battle" | "challenge"
     }
@@ -540,6 +775,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_role: ["admin", "moderator", "user"],
       quest_status: ["active", "completed", "claimed"],
       quest_type: ["pet_care", "battle", "challenge"],
     },

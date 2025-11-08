@@ -18,6 +18,7 @@ import Battle from "./pages/Battle";
 import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
 import Quests from "./pages/Quests";
+import Marketplace from "./pages/Marketplace";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -44,6 +45,7 @@ const App = () => (
               <Route path="/battle" element={<Battle />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/profile/:userId" element={<Profile />} />
+              <Route path="/marketplace" element={<Marketplace />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

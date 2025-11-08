@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -15,20 +15,39 @@ import petAqua from "@/assets/pet-aqua.png";
 import petTerra from "@/assets/pet-terra.png";
 import petCloud from "@/assets/pet-cloud.png";
 
-const species = [
-  { id: "fluff", name: "Cats", image: petFluff, description: "A fluffy, loving companion", element: "light" },
-  { id: "spark", name: "Dragons", image: petSpark, description: "Magical and full of energy", element: "fire" },
-  { id: "aqua", name: "Sea Critters", image: petAqua, description: "Calm and peaceful water friend", element: "water" },
-  { id: "terra", name: "Mammals", image: petTerra, description: "Strong and dependable", element: "earth" },
-  { id: "cloud", name: "Bird", image: petCloud, description: "Light and dreamy", element: "air" },
-];
+// Map for local images
+const imageMap: Record<string, string> = {
+  fluff: petFluff,
+  spark: petSpark,
+  aqua: petAqua,
+  terra: petTerra,
+  cloud: petCloud,
+};
 
 const Adopt = () => {
+  const [species, setSpecies] = useState<any[]>([]);
   const { user } = useAuth();
   const navigate = useNavigate();
   const [selectedSpecies, setSelectedSpecies] = useState("");
   const [petName, setPetName] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchSpecies = async () => {
+      const { data, error } = await supabase
+        .from("species_catalog")
+        .select("*")
+        .eq("is_active", true);
+
+      if (error) {
+        toast.error("Error loading species: " + error.message);
+      } else if (data) {
+        setSpecies(data);
+      }
+    };
+
+    fetchSpecies();
+  }, []);
 
   const handleAdopt = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,17 +123,22 @@ const Adopt = () => {
                     onClick={() => setSelectedSpecies(spec.id)}
                   >
                     <img
-                      src={spec.image}
-                      alt={spec.name}
+                      src={spec.image_url || imageMap[spec.id]}
+                      alt={spec.display_name}
                       className="w-full h-32 object-contain mb-2"
                     />
-                    <h3 className="font-bold text-center mb-1">{spec.name}</h3>
+                    <h3 className="font-bold text-center mb-1">{spec.display_name}</h3>
                     <p className="text-xs text-primary/80 text-center font-semibold mb-1">
                       {spec.element.charAt(0).toUpperCase() + spec.element.slice(1)} Element
                     </p>
                     <p className="text-xs text-muted-foreground text-center">
                       {spec.description}
                     </p>
+                    {spec.rarity !== 'common' && (
+                      <p className="text-xs font-bold text-accent text-center mt-1">
+                        {spec.rarity.toUpperCase()}
+                      </p>
+                    )}
                   </Card>
                 ))}
               </div>
