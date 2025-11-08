@@ -65,6 +65,39 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_quests: {
+        Row: {
+          created_at: string | null
+          description: string
+          id: string
+          quest_type: Database["public"]["Enums"]["quest_type"]
+          reward_experience: number
+          reward_petpoints: number
+          target_count: number
+          title: string
+        }
+        Insert: {
+          created_at?: string | null
+          description: string
+          id?: string
+          quest_type: Database["public"]["Enums"]["quest_type"]
+          reward_experience?: number
+          reward_petpoints?: number
+          target_count?: number
+          title: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string
+          id?: string
+          quest_type?: Database["public"]["Enums"]["quest_type"]
+          reward_experience?: number
+          reward_petpoints?: number
+          target_count?: number
+          title?: string
+        }
+        Relationships: []
+      }
       inventory: {
         Row: {
           created_at: string | null
@@ -250,15 +283,66 @@ export type Database = {
         }
         Relationships: []
       }
+      user_quest_progress: {
+        Row: {
+          assigned_at: string
+          claimed_at: string | null
+          completed_at: string | null
+          created_at: string | null
+          current_count: number
+          id: string
+          quest_id: string
+          status: Database["public"]["Enums"]["quest_status"]
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          claimed_at?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          current_count?: number
+          id?: string
+          quest_id: string
+          status?: Database["public"]["Enums"]["quest_status"]
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          assigned_at?: string
+          claimed_at?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          current_count?: number
+          id?: string
+          quest_id?: string
+          status?: Database["public"]["Enums"]["quest_status"]
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_quest_progress_quest_id_fkey"
+            columns: ["quest_id"]
+            isOneToOne: false
+            referencedRelation: "daily_quests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      assign_daily_quests_to_user: {
+        Args: { p_user_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
-      [_ in never]: never
+      quest_status: "active" | "completed" | "claimed"
+      quest_type: "pet_care" | "battle" | "challenge"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -385,6 +469,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      quest_status: ["active", "completed", "claimed"],
+      quest_type: ["pet_care", "battle", "challenge"],
+    },
   },
 } as const

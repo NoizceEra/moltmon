@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Navbar } from "@/components/ui/navbar";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { trackQuestProgress } from "@/lib/questTracker";
 import petFluff from "@/assets/pet-fluff.png";
 import petSpark from "@/assets/pet-spark.png";
 import petAqua from "@/assets/pet-aqua.png";
@@ -50,6 +51,16 @@ const Adopt = () => {
       ]);
 
       if (error) throw error;
+
+      // Track quest progress for pet collection
+      const { data: petCount } = await supabase
+        .from("pets")
+        .select("id", { count: 'exact' })
+        .eq("owner_id", user.id);
+
+      if (petCount && petCount.length >= 3) {
+        await trackQuestProgress(user.id, 'challenge', 1);
+      }
 
       toast.success(`${petName} has joined your family!`);
       navigate("/dashboard");

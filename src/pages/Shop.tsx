@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Coins, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { trackQuestProgress } from "@/lib/questTracker";
 
 interface ShopItem {
   id: string;
@@ -105,6 +106,9 @@ const Shop = () => {
         .from("profiles")
         .update({ pet_points: profile.pet_points - item.price })
         .eq("id", user.id);
+
+      // Track quest progress for shop purchases
+      await trackQuestProgress(user.id, 'challenge', 1);
 
       setProfile({ pet_points: profile.pet_points - item.price });
       toast.success(`Purchased ${item.name}!`);

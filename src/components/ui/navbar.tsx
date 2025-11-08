@@ -2,7 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { Button } from "./button";
 import { Sheet, SheetContent, SheetTrigger } from "./sheet";
-import { Sparkles, Store, LogOut, User, Users, Trophy, MessageCircle, Swords, Menu, Settings, Moon, Sun } from "lucide-react";
+import { Sparkles, Store, LogOut, User, Users, Trophy, MessageCircle, Swords, Menu, Settings, Moon, Sun, Zap } from "lucide-react";
 import { useState } from "react";
 import { useTheme } from "next-themes";
 
@@ -14,6 +14,7 @@ export const Navbar = () => {
 
   const navLinks = [
     { to: "/dashboard", icon: User, label: "My Pets" },
+    { to: "/quests", icon: Zap, label: "Quests" },
     { to: "/shop", icon: Store, label: "Shop" },
     { to: "/community", icon: Users, label: "Community" },
     { to: "/leaderboard", icon: Trophy, label: "Leaderboard" },

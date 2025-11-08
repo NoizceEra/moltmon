@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Sword, Shield, Zap, Cloud, Flame, Droplet, Mountain, Wind, Sparkles, MoveRight, Package, AlertTriangle, RefreshCw } from "lucide-react";
 import { Navbar } from "@/components/ui/navbar";
 import { Footer } from "@/components/ui/footer";
+import { trackQuestProgress } from "@/lib/questTracker";
 
 interface Skill {
   name: string;
@@ -826,6 +827,12 @@ const Battle = () => {
     ]);
 
     if (user) {
+      // Track quest progress for battles
+      await trackQuestProgress(user.id, 'battle', 1); // Participation
+      if (won) {
+        await trackQuestProgress(user.id, 'battle', 1); // Extra count for wins (handled by quest target)
+      }
+
       const { data: profile } = await supabase
         .from("profiles")
         .select("pet_points")

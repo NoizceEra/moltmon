@@ -10,6 +10,7 @@ import { UtensilsCrossed, Gamepad2, Sparkles, Moon, ArrowLeft, Palette, Package 
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { trackQuestProgress } from "@/lib/questTracker";
 import petFluff from "@/assets/pet-fluff.png";
 import petSpark from "@/assets/pet-spark.png";
 import petAqua from "@/assets/pet-aqua.png";
@@ -125,6 +126,12 @@ const PetDetail = () => {
     if (updates.experience >= 100 * pet.level) {
       updates.level = pet.level + 1;
       updates.experience = 0;
+      
+      // Track quest progress for level up
+      if (user) {
+        await trackQuestProgress(user.id, 'challenge', 1);
+      }
+      
       toast.success(`${pet.name} leveled up to ${pet.level + 1}!`);
     }
 
@@ -133,6 +140,11 @@ const PetDetail = () => {
     if (error) {
       toast.error("Action failed");
       return;
+    }
+
+    // Track quest progress for pet care actions
+    if (user) {
+      await trackQuestProgress(user.id, 'pet_care');
     }
 
     // Update profile points if cost

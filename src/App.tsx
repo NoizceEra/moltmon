@@ -17,6 +17,7 @@ import Chat from "./pages/Chat";
 import Battle from "./pages/Battle";
 import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
+import Quests from "./pages/Quests";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,6 +36,7 @@ const App = () => (
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/adopt" element={<Adopt />} />
               <Route path="/pet/:id" element={<PetDetail />} />
+              <Route path="/quests" element={<Quests />} />
               <Route path="/shop" element={<Shop />} />
               <Route path="/community" element={<Community />} />
               <Route path="/leaderboard" element={<Leaderboard />} />
