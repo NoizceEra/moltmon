@@ -64,6 +64,37 @@ Deno.serve(async (req) => {
       })
     }
 
+    // Validate winner against stored battle turns
+    const { data: lastTurn, error: turnError } = await supabase
+      .from('battle_turns')
+      .select('attacker_hp, defender_hp')
+      .eq('battle_id', battleId)
+      .order('turn_number', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (lastTurn) {
+      // Determine actual winner from final HP state
+      const actualWinner = lastTurn.attacker_hp > 0 ? battle.attacker_id : battle.defender_id
+      
+      // Validate claimed winner matches actual battle outcome
+      if (winnerId && winnerId !== actualWinner) {
+        console.error('Winner validation failed:', { claimed: winnerId, actual: actualWinner })
+        return new Response(JSON.stringify({ error: 'Invalid battle outcome claimed' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+    }
+
+    // Basic validation - winnerId must be one of the participants
+    if (winnerId && winnerId !== battle.attacker_id && winnerId !== battle.defender_id) {
+      return new Response(JSON.stringify({ error: 'Invalid winner ID' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
     // Calculate rewards server-side
     const won = winnerId === user.id
     const userPetLevel = battle.attacker_id === user.id ? battle.attacker_pet.level : battle.defender_pet.level

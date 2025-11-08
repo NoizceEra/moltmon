@@ -415,6 +415,9 @@ const Battle = () => {
     setActivePetIndex(index);
     setBattleLog((prev) => [...prev, `Go, ${selectedTeam[index].name}!`]);
     
+    // Save battle turn
+    saveBattleTurn('attacker', 'switch', 0);
+    
     setTimeout(() => opponentTurn(), 1000);
   };
 
@@ -476,6 +479,9 @@ const Battle = () => {
     if (item.quantity - 1 <= 0) {
       await supabase.from("inventory").delete().eq("id", item.id);
     }
+    
+    // Save battle turn
+    saveBattleTurn('attacker', 'item', 0, undefined, item.name);
     
     fetchBattleItems();
     setTimeout(() => opponentTurn(), 1000);
@@ -550,6 +556,9 @@ const Battle = () => {
     updatedTeam[activePetIndex] = { ...activePet, isDefending: true, isDodging: false };
     setSelectedTeam(updatedTeam);
     setBattleLog((prev) => [...prev, `${activePet.name} took a defensive stance!`]);
+    
+    // Save battle turn
+    saveBattleTurn('attacker', 'defend', 0);
 
     setTimeout(() => opponentTurn(), 1000);
   };
@@ -562,6 +571,9 @@ const Battle = () => {
     setSelectedTeam(updatedTeam);
     setDodgeCooldown(2);
     setBattleLog((prev) => [...prev, `${activePet.name} prepares to dodge and counter!`]);
+    
+    // Save battle turn
+    saveBattleTurn('attacker', 'dodge', 0);
 
     setTimeout(() => opponentTurn(), 1000);
   };
@@ -578,6 +590,36 @@ const Battle = () => {
     setSpecialCooldown(3);
     setBattleLog((prev) => [...prev, `${activePet.name} charges a special attack!`]);
     attack(specialSkill);
+  };
+
+  // Helper function to save battle turn to database
+  const saveBattleTurn = async (
+    actorType: 'attacker' | 'defender',
+    actionType: string,
+    damageDealt: number,
+    skillUsed?: string,
+    itemUsed?: string
+  ) => {
+    if (!currentBattleId) return;
+    
+    try {
+      const attackerHp = selectedTeam[activePetIndex]?.currentHealth || 0;
+      const defenderHp = opponentTeam[activeOpponentIndex]?.currentHealth || 0;
+      
+      await supabase.from('battle_turns').insert({
+        battle_id: currentBattleId,
+        turn_number: turnCount,
+        actor_type: actorType,
+        action_type: actionType,
+        skill_used: skillUsed,
+        item_used: itemUsed,
+        damage_dealt: damageDealt,
+        attacker_hp: attackerHp,
+        defender_hp: defenderHp
+      });
+    } catch (error) {
+      console.error('Error saving battle turn:', error);
+    }
   };
 
   const attack = (skill?: Skill) => {
@@ -670,6 +712,9 @@ const Battle = () => {
     
     // Track attacker damage
     setTotalAttackerDamage(prev => prev + damage);
+    
+    // Save battle turn to database
+    saveBattleTurn('attacker', skill ? 'skill' : 'attack', damage, skillToUse.name);
     
     const updatedOpponentTeam = [...opponentTeam];
     let newOpponentHealth = Math.max(0, activeOpponent.currentHealth - damage);
@@ -817,6 +862,9 @@ const Battle = () => {
     
     // Track defender damage
     setTotalDefenderDamage(prev => prev + opponentDamage);
+    
+    // Save battle turn to database
+    saveBattleTurn('defender', 'attack', opponentDamage, opponentSkill.name);
     
     const updatedTeam = [...selectedTeam];
     let newPlayerHealth = Math.max(0, activePet.currentHealth - opponentDamage);

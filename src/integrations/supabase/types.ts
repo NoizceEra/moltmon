@@ -14,6 +14,56 @@ export type Database = {
   }
   public: {
     Tables: {
+      battle_turns: {
+        Row: {
+          action_type: string
+          actor_type: string
+          attacker_hp: number
+          battle_id: string
+          created_at: string | null
+          damage_dealt: number | null
+          defender_hp: number
+          id: string
+          item_used: string | null
+          skill_used: string | null
+          turn_number: number
+        }
+        Insert: {
+          action_type: string
+          actor_type: string
+          attacker_hp: number
+          battle_id: string
+          created_at?: string | null
+          damage_dealt?: number | null
+          defender_hp: number
+          id?: string
+          item_used?: string | null
+          skill_used?: string | null
+          turn_number: number
+        }
+        Update: {
+          action_type?: string
+          actor_type?: string
+          attacker_hp?: number
+          battle_id?: string
+          created_at?: string | null
+          damage_dealt?: number | null
+          defender_hp?: number
+          id?: string
+          item_used?: string | null
+          skill_used?: string | null
+          turn_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "battle_turns_battle_id_fkey"
+            columns: ["battle_id"]
+            isOneToOne: false
+            referencedRelation: "battles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       battles: {
         Row: {
           attacker_damage_dealt: number
