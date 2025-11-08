@@ -1,7 +1,15 @@
 import { Link } from "react-router-dom";
-import { Sparkles, Heart, Mail } from "lucide-react";
+import { Sparkles, Heart, Copy } from "lucide-react";
+import { toast } from "sonner";
 
 export const Footer = () => {
+  const contractAddress = "6vjQQTFQmYg6xummvLBJshY7Kkz7rrSkdDnd9dqSpump";
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(contractAddress);
+    toast.success("Contract address copied to clipboard!");
+  };
+
   return (
     <footer className="border-t bg-card/30 backdrop-blur-sm mt-auto">
       <div className="container mx-auto px-4 py-8">
@@ -88,9 +96,19 @@ export const Footer = () => {
         </div>
 
         <div className="border-t mt-8 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-sm text-muted-foreground">
-            © 2025 Critter Club. Made with <Heart className="w-4 h-4 inline text-secondary" /> for pet lovers everywhere.
-          </p>
+          <div className="flex flex-col items-center md:items-start gap-2">
+            <p className="text-sm text-muted-foreground">
+              © 2025 Critter Club. Made with <Heart className="w-4 h-4 inline text-secondary" /> for pet lovers everywhere.
+            </p>
+            <button
+              onClick={copyToClipboard}
+              className="flex items-center gap-2 text-xs text-muted-foreground hover:text-primary transition-colors group"
+              title="Click to copy contract address"
+            >
+              <span className="font-mono">{contractAddress}</span>
+              <Copy className="w-3 h-3 group-hover:scale-110 transition-transform" />
+            </button>
+          </div>
           <div className="flex items-center gap-4">
             <Link to="/settings" className="text-sm text-muted-foreground hover:text-primary transition-colors">
               Settings
