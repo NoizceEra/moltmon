@@ -56,6 +56,24 @@ Deno.serve(async (req) => {
       })
     }
 
+    // Check if this is a wagered PVP battle
+    let wagerAmount = 0
+    if (!battle.is_ai_battle && battle.defender_id) {
+      const { data: challenge } = await supabase
+        .from('battle_challenges')
+        .select('wager_amount')
+        .eq('status', 'accepted')
+        .or(`challenger_id.eq.${battle.attacker_id},challenger_id.eq.${battle.defender_id}`)
+        .or(`challenged_id.eq.${battle.attacker_id},challenged_id.eq.${battle.defender_id}`)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      
+      if (challenge) {
+        wagerAmount = challenge.wager_amount
+      }
+    }
+
     // Verify user is part of this battle
     if (battle.attacker_id !== user.id && battle.defender_id !== user.id) {
       return new Response(JSON.stringify({ error: 'Not authorized for this battle' }), {
@@ -102,10 +120,16 @@ Deno.serve(async (req) => {
     // Team size calculation based on damage dealt (rough approximation)
     const teamSize = Math.max(1, Math.floor(attackerDamageDealt / 100) || 1)
     
-    const rewards = won ? (50 + userPetLevel * 10) * teamSize : 10
+    let rewards = won ? (50 + userPetLevel * 10) * teamSize : 10
     const experience = won ? (30 + userPetLevel * 5) * teamSize : 5
 
-    console.log('Calculated rewards:', { rewards, experience, won, userPetLevel, teamSize })
+    // Add wager pot to winner's rewards (they get double their wager)
+    if (wagerAmount > 0 && won) {
+      rewards += (wagerAmount * 2)
+      console.log('Winner receives wager pot:', wagerAmount * 2)
+    }
+
+    console.log('Calculated rewards:', { rewards, experience, won, userPetLevel, teamSize, wagerAmount })
 
     // Update battle record
     const { error: battleUpdateError } = await supabase

@@ -11,6 +11,7 @@ import { Sword, Shield, Zap, Cloud, Flame, Droplet, Mountain, Wind, Sparkles, Mo
 import { Navbar } from "@/components/ui/navbar";
 import { Footer } from "@/components/ui/footer";
 import { trackQuestProgress } from "@/lib/questTracker";
+import { PvPBattleInterface } from "@/components/battle/PvPBattleInterface";
 import petAqua from "@/assets/pet-aqua.png";
 import petCloud from "@/assets/pet-cloud.png";
 import petFluff from "@/assets/pet-fluff.png";
@@ -1067,9 +1068,10 @@ const Battle = () => {
 
           {!inBattle ? (
             <Tabs defaultValue="select" className="space-y-6">
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="select">Select Team (1-3)</TabsTrigger>
-                <TabsTrigger value="opponents">Find Opponent</TabsTrigger>
+                <TabsTrigger value="opponents">AI Battle</TabsTrigger>
+                <TabsTrigger value="pvp">PVP Battle</TabsTrigger>
               </TabsList>
 
               <TabsContent value="select">
@@ -1153,21 +1155,19 @@ const Battle = () => {
                       </Button>
                     </CardContent>
                   </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Sword className="h-5 w-5" />
-                        PvP Battles (Coming Soon)
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-muted-foreground text-center">
-                        Multiplayer team battles will be available soon!
-                      </p>
-                    </CardContent>
-                  </Card>
                 </div>
+              </TabsContent>
+
+              <TabsContent value="pvp">
+                <PvPBattleInterface 
+                  onBattleStart={(battleId, isChallenger) => {
+                    toast({
+                      title: "PVP Battle Starting!",
+                      description: "Loading battle...",
+                    });
+                    setCurrentBattleId(battleId);
+                  }}
+                />
               </TabsContent>
             </Tabs>
           ) : (
