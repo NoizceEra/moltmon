@@ -12,6 +12,7 @@ import { Navbar } from "@/components/ui/navbar";
 import { Footer } from "@/components/ui/footer";
 import { trackQuestProgress } from "@/lib/questTracker";
 import { PvPBattleInterface } from "@/components/battle/PvPBattleInterface";
+import { RealtimeBattleSync } from "@/components/battle/RealtimeBattleSync";
 import petAqua from "@/assets/pet-aqua.png";
 import petCloud from "@/assets/pet-cloud.png";
 import petFluff from "@/assets/pet-fluff.png";
@@ -90,6 +91,8 @@ const Battle = () => {
   const [currentBattleId, setCurrentBattleId] = useState<string | null>(null);
   const [totalAttackerDamage, setTotalAttackerDamage] = useState(0);
   const [totalDefenderDamage, setTotalDefenderDamage] = useState(0);
+  const [isPvPBattle, setIsPvPBattle] = useState(false);
+  const [isAttacker, setIsAttacker] = useState(false);
 
   const activePet = selectedTeam[activePetIndex];
   const activeOpponent = opponentTeam[activeOpponentIndex];
@@ -1161,20 +1164,46 @@ const Battle = () => {
               <TabsContent value="pvp">
                 <PvPBattleInterface 
                   onBattleStart={(battleId, isChallenger) => {
-                    toast({
-                      title: "PVP Battle Starting!",
-                      description: "Loading battle...",
-                    });
                     setCurrentBattleId(battleId);
+                    setIsPvPBattle(true);
+                    setIsAttacker(isChallenger);
+                    setInBattle(true);
+                    toast({
+                      title: "PVP Battle Started!",
+                      description: "Real-time battle sync enabled",
+                    });
                   }}
                 />
               </TabsContent>
             </Tabs>
           ) : (
-            <Card>
+            <>
+              {/* PVP Real-time Sync */}
+              {isPvPBattle && currentBattleId && (
+                <div className="mb-6">
+                  <RealtimeBattleSync
+                    battleId={currentBattleId}
+                    isAttacker={isAttacker}
+                    onBattleEnd={(winnerId) => {
+                      setInBattle(false);
+                      setIsPvPBattle(false);
+                      setCurrentBattleId(null);
+                      toast({
+                        title: winnerId === user?.id ? "Victory!" : "Defeat",
+                        description: "PVP battle completed",
+                      });
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* Regular Battle UI */}
+              <Card>
               <CardHeader>
                 <div className="flex justify-between items-center">
-                  <CardTitle className="text-center flex-1">Team Battle!</CardTitle>
+                  <CardTitle className="text-center flex-1">
+                    {isPvPBattle ? "PVP Battle!" : "Team Battle!"}
+                  </CardTitle>
                   <Badge variant="outline" className="flex items-center gap-1">
                     {getWeatherIcon()}
                     <span className="capitalize">{weather}</span>
@@ -1407,6 +1436,7 @@ const Battle = () => {
                 </div>
               </CardContent>
             </Card>
+            </>
           )}
         </div>
       </div>

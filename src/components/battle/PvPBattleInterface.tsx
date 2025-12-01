@@ -143,20 +143,41 @@ export const PvPBattleInterface = ({ onBattleStart }: PvPBattleInterfaceProps) =
   const fetchChallenges = async () => {
     if (!user) return;
 
-    // Incoming challenges
+    // Incoming challenges - fetch separately due to foreign key structure
     const { data: incoming } = await supabase
       .from('battle_challenges')
-      .select(`
-        *,
-        challenger:profiles!battle_challenges_challenger_id_fkey(username),
-        challenger_pet:pets!battle_challenges_challenger_pet_id_fkey(*)
-      `)
+      .select('*')
       .eq('challenged_id', user.id)
       .eq('status', 'pending')
       .gt('expires_at', new Date().toISOString());
 
-    if (incoming) {
-      setIncomingChallenges(incoming as any);
+    if (incoming && incoming.length > 0) {
+      // Fetch challenger details and pets separately
+      const enrichedChallenges = await Promise.all(
+        incoming.map(async (challenge) => {
+          const { data: challenger } = await supabase
+            .from('profiles')
+            .select('username')
+            .eq('id', challenge.challenger_id)
+            .single();
+
+          const { data: challengerPet } = await supabase
+            .from('pets')
+            .select('*')
+            .eq('id', challenge.challenger_pet_id)
+            .single();
+
+          return {
+            ...challenge,
+            challenger,
+            challenger_pet: challengerPet
+          };
+        })
+      );
+      
+      setIncomingChallenges(enrichedChallenges as any);
+    } else {
+      setIncomingChallenges([]);
     }
 
     // Outgoing challenges
