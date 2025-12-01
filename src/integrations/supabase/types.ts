@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      battle_challenges: {
+        Row: {
+          challenged_id: string
+          challenged_pet_id: string | null
+          challenger_id: string
+          challenger_pet_id: string
+          created_at: string | null
+          expires_at: string | null
+          id: string
+          status: string
+          wager_amount: number | null
+        }
+        Insert: {
+          challenged_id: string
+          challenged_pet_id?: string | null
+          challenger_id: string
+          challenger_pet_id: string
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          status?: string
+          wager_amount?: number | null
+        }
+        Update: {
+          challenged_id?: string
+          challenged_pet_id?: string | null
+          challenger_id?: string
+          challenger_pet_id?: string
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          status?: string
+          wager_amount?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "battle_challenges_challenged_pet_id_fkey"
+            columns: ["challenged_pet_id"]
+            isOneToOne: false
+            referencedRelation: "pets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "battle_challenges_challenger_pet_id_fkey"
+            columns: ["challenger_pet_id"]
+            isOneToOne: false
+            referencedRelation: "pets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       battle_turns: {
         Row: {
           action_type: string
@@ -615,6 +666,10 @@ export type Database = {
       }
     }
     Functions: {
+      accept_battle_challenge: {
+        Args: { p_challenge_id: string; p_challenged_pet_id: string }
+        Returns: Json
+      }
       accept_trade_offer: {
         Args: { p_offer_id: string; p_recipient_id: string }
         Returns: Json
