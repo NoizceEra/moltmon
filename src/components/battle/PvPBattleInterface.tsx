@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Swords, Trophy, Coins, Clock, X, Check, AlertCircle } from "lucide-react";
+import { Swords, Trophy, Coins, Clock, X, Check, AlertCircle, ChevronDown } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface Player {
@@ -43,10 +43,11 @@ interface Challenge {
 }
 
 interface PvPBattleInterfaceProps {
-  onBattleStart: (battleId: string, isChallenger: boolean) => void;
+  selectedPets?: { id: string }[];
+  onBattleStart: (battleId: string, isChallenger: boolean, challengerPetId: string, challengedPetId: string) => void;
 }
 
-export const PvPBattleInterface = ({ onBattleStart }: PvPBattleInterfaceProps) => {
+export const PvPBattleInterface = ({ selectedPets, onBattleStart }: PvPBattleInterfaceProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [players, setPlayers] = useState<Player[]>([]);
@@ -58,6 +59,7 @@ export const PvPBattleInterface = ({ onBattleStart }: PvPBattleInterfaceProps) =
   const [outgoingChallenges, setOutgoingChallenges] = useState<Challenge[]>([]);
   const [myPoints, setMyPoints] = useState<number>(0);
   const [loading, setLoading] = useState(false);
+  const [selectedPetForAccept, setSelectedPetForAccept] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (user) {
@@ -66,7 +68,7 @@ export const PvPBattleInterface = ({ onBattleStart }: PvPBattleInterfaceProps) =
       fetchChallenges();
       fetchMyPoints();
       
-      // Subscribe to challenge updates
+      // Subscribe to challenge updates for both incoming and outgoing
       const challengeChannel = supabase
         .channel('challenge-updates')
         .on(
@@ -81,13 +83,48 @@ export const PvPBattleInterface = ({ onBattleStart }: PvPBattleInterfaceProps) =
             fetchChallenges();
           }
         )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'battle_challenges',
+            filter: `challenger_id=eq.${user.id}`
+          },
+          async (payload) => {
+            // Check if our challenge was accepted
+            if (payload.new && (payload.new as any).status === 'accepted') {
+              const challenge = payload.new as any;
+              
+              // Get the battle that was created
+              const { data: battle } = await supabase
+                .from('battles')
+                .select('*')
+                .eq('attacker_id', user.id)
+                .eq('attacker_pet_id', challenge.challenger_pet_id)
+                .eq('defender_pet_id', challenge.challenged_pet_id)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              
+              if (battle) {
+                toast({
+                  title: "Challenge Accepted!",
+                  description: "Your opponent is ready to battle!"
+                });
+                onBattleStart(battle.id, true, challenge.challenger_pet_id, challenge.challenged_pet_id);
+              }
+            }
+            fetchChallenges();
+          }
+        )
         .subscribe();
 
       return () => {
         supabase.removeChannel(challengeChannel);
       };
     }
-  }, [user]);
+  }, [user, onBattleStart]);
 
   const fetchMyPoints = async () => {
     if (!user) return;
@@ -245,8 +282,9 @@ export const PvPBattleInterface = ({ onBattleStart }: PvPBattleInterfaceProps) =
   const acceptChallenge = async (challenge: Challenge) => {
     if (!user || !myPets.length) return;
 
-    // Select first available pet
-    const selectedPetForBattle = myPets[0];
+    // Use selected pet or first available
+    const petId = selectedPetForAccept[challenge.id] || myPets[0].id;
+    const selectedPetForBattle = myPets.find(p => p.id === petId) || myPets[0];
 
     setLoading(true);
 
@@ -273,7 +311,7 @@ export const PvPBattleInterface = ({ onBattleStart }: PvPBattleInterfaceProps) =
         });
         fetchChallenges();
         fetchMyPoints();
-        onBattleStart(result.battle_id, false);
+        onBattleStart(result.battle_id, false, challenge.challenger_pet_id, selectedPetForBattle.id);
       }
     }
   };
@@ -322,12 +360,12 @@ export const PvPBattleInterface = ({ onBattleStart }: PvPBattleInterfaceProps) =
           <CardContent className="space-y-3">
             {incomingChallenges.map((challenge) => (
               <Card key={challenge.id} className="bg-background/50">
-                <CardContent className="p-4">
+                <CardContent className="p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="space-y-1">
                       <p className="font-semibold">{challenge.challenger?.username}</p>
                       <p className="text-sm text-muted-foreground">
-                        {challenge.challenger_pet?.name} (Lv. {challenge.challenger_pet?.level})
+                        {challenge.challenger_pet?.name} (Lv. {challenge.challenger_pet?.level} {challenge.challenger_pet?.element})
                       </p>
                       {challenge.wager_amount > 0 && (
                         <Badge variant="secondary" className="gap-1">
@@ -336,26 +374,45 @@ export const PvPBattleInterface = ({ onBattleStart }: PvPBattleInterfaceProps) =
                         </Badge>
                       )}
                     </div>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="default"
-                        onClick={() => acceptChallenge(challenge)}
-                        disabled={loading}
-                      >
-                        <Check className="w-4 h-4 mr-1" />
-                        Accept
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => declineChallenge(challenge.id)}
-                        disabled={loading}
-                      >
-                        <X className="w-4 h-4 mr-1" />
-                        Decline
-                      </Button>
+                  </div>
+                  
+                  {/* Pet Selection for Accept */}
+                  <div className="space-y-2">
+                    <Label className="text-xs">Choose your pet:</Label>
+                    <div className="flex gap-2 flex-wrap">
+                      {myPets.map((pet) => (
+                        <Button
+                          key={pet.id}
+                          size="sm"
+                          variant={selectedPetForAccept[challenge.id] === pet.id || (!selectedPetForAccept[challenge.id] && pet.id === myPets[0]?.id) ? "default" : "outline"}
+                          onClick={() => setSelectedPetForAccept(prev => ({ ...prev, [challenge.id]: pet.id }))}
+                          className="h-8 text-xs"
+                        >
+                          {pet.name} (Lv.{pet.level})
+                        </Button>
+                      ))}
                     </div>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="default"
+                      onClick={() => acceptChallenge(challenge)}
+                      disabled={loading || myPets.length === 0}
+                    >
+                      <Check className="w-4 h-4 mr-1" />
+                      Accept
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => declineChallenge(challenge.id)}
+                      disabled={loading}
+                    >
+                      <X className="w-4 h-4 mr-1" />
+                      Decline
+                    </Button>
                   </div>
                 </CardContent>
               </Card>

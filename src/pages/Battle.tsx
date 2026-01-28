@@ -1163,11 +1163,50 @@ const Battle = () => {
 
               <TabsContent value="pvp">
                 <PvPBattleInterface 
-                  onBattleStart={(battleId, isChallenger) => {
+                  selectedPets={selectedTeam}
+                  onBattleStart={async (battleId, isChallenger, challengerPetId, challengedPetId) => {
+                    // Fetch both pets for the battle
+                    const myPetId = isChallenger ? challengerPetId : challengedPetId;
+                    const opponentPetId = isChallenger ? challengedPetId : challengerPetId;
+                    
+                    // Get my pet
+                    const { data: myPetData } = await supabase
+                      .from('pets')
+                      .select('*')
+                      .eq('id', myPetId)
+                      .single();
+                    
+                    // Get opponent pet
+                    const { data: opponentPetData } = await supabase
+                      .from('pets')
+                      .select('*')
+                      .eq('id', opponentPetId)
+                      .single();
+                    
+                    if (myPetData && opponentPetData) {
+                      const myPet = { ...myPetData, skills: (myPetData.skills as any) || [] } as Pet;
+                      const opponentPet = { ...opponentPetData, skills: (opponentPetData.skills as any) || [] } as Pet;
+                      
+                      setSelectedTeam([calculateStats(myPet)]);
+                      setOpponentTeam([calculateStats(opponentPet)]);
+                      setActivePetIndex(0);
+                      setActiveOpponentIndex(0);
+                      
+                      const newWeather = randomWeather();
+                      setWeather(newWeather);
+                      setBattleLog([
+                        `PVP Battle started!`,
+                        `Weather: ${newWeather.charAt(0).toUpperCase() + newWeather.slice(1)}`,
+                      ]);
+                    }
+                    
                     setCurrentBattleId(battleId);
                     setIsPvPBattle(true);
                     setIsAttacker(isChallenger);
                     setInBattle(true);
+                    setTotalAttackerDamage(0);
+                    setTotalDefenderDamage(0);
+                    
                     toast({
                       title: "PVP Battle Started!",
                       description: "Real-time battle sync enabled",
