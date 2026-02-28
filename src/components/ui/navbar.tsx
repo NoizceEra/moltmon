@@ -30,11 +30,11 @@ export const Navbar = () => {
         <div className="flex items-center gap-4">
           <Link to="/" className="flex items-center gap-2 font-bold text-xl">
             <Sparkles className="w-6 h-6 text-primary" />
-            <span className="text-gradient hidden sm:inline">Critter Club</span>
+            <span className="text-gradient hidden sm:inline">Moltmon</span>
             <span className="text-gradient sm:hidden">CC</span>
           </Link>
           <a 
-            href="https://x.com/CritterClub_Fun" 
+            href="https://x.com/MoltClub_Fun" 
             target="_blank" 
             rel="noopener noreferrer"
             className="text-muted-foreground hover:text-primary transition-colors"
@@ -135,3 +135,4 @@ export const Navbar = () => {
     </nav>
   );
 };
+

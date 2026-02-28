@@ -18,7 +18,7 @@ export const Footer = () => {
           <div className="space-y-4">
             <Link to="/" className="flex items-center gap-2 font-bold text-xl">
               <Sparkles className="w-6 h-6 text-primary" />
-              <span className="text-gradient">Critter Club</span>
+              <span className="text-gradient">Moltmon</span>
             </Link>
             <p className="text-sm text-muted-foreground">
               Your magical world of adorable virtual pets
@@ -80,7 +80,7 @@ export const Footer = () => {
             <ul className="space-y-2">
               <li>
                 <a 
-                  href="https://x.com/CritterClub_Fun" 
+                  href="https://x.com/MoltClub_Fun" 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="text-sm text-muted-foreground hover:text-primary transition-colors flex items-center gap-2"
@@ -98,7 +98,7 @@ export const Footer = () => {
         <div className="border-t mt-8 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex flex-col items-center md:items-start gap-2">
             <p className="text-sm text-muted-foreground">
-              © 2025 Critter Club. Made with <Heart className="w-4 h-4 inline text-secondary" /> for pet lovers everywhere.
+              © 2025 Moltmon. Made with <Heart className="w-4 h-4 inline text-secondary" /> for pet lovers everywhere.
             </p>
             <button
               onClick={copyToClipboard}
@@ -119,3 +119,4 @@ export const Footer = () => {
     </footer>
   );
 };
+

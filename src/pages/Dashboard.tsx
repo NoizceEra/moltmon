@@ -125,7 +125,7 @@ const Dashboard = () => {
             <div className="max-w-md mx-auto">
               <h3 className="text-2xl font-bold mb-4">No Pets Yet!</h3>
               <p className="text-muted-foreground mb-6">
-                Adopt your first pet to begin your adventure in Critter Club
+                Adopt your first pet to begin your adventure in Moltmon
               </p>
               <Link to="/adopt">
                 <Button size="lg" className="shadow-button">
@@ -197,3 +197,4 @@ const StatBar = ({
 };
 
 export default Dashboard;
+
