@@ -2,7 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { Button } from "./button";
 import { Sheet, SheetContent, SheetTrigger } from "./sheet";
-import { Sparkles, Store, LogOut, User, Users, Trophy, MessageCircle, Swords, Menu, Settings, Moon, Sun, Zap, ShoppingBag } from "lucide-react";
+import { Sparkles, Store, LogOut, User, Users, Trophy, MessageCircle, Swords, Menu, Settings, Moon, Sun, Zap, ShoppingBag, Github, Package } from "lucide-react";
 import { useState } from "react";
 import { useTheme } from "next-themes";
 
@@ -33,17 +33,40 @@ export const Navbar = () => {
             <span className="text-gradient hidden sm:inline">Moltmon</span>
             <span className="text-gradient sm:hidden">CC</span>
           </Link>
-          <a 
-            href="https://x.com/MoltClub_Fun" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-muted-foreground hover:text-primary transition-colors"
-            aria-label="Follow us on Twitter"
-          >
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
-            </svg>
-          </a>
+          <div className="flex items-center gap-2">
+            <a 
+              href="https://github.com/NoizceEra/moltmon" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-primary transition-colors"
+              aria-label="GitHub Repository"
+              title="GitHub Repository"
+            >
+              <Github className="w-5 h-5" />
+            </a>
+            <a 
+              href="https://clawhub.com/skill/moltmon-v1" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-primary transition-colors"
+              aria-label="ClawHub Listing"
+              title="ClawHub Skill Registry"
+            >
+              <Package className="w-5 h-5" />
+            </a>
+            <a 
+              href="https://x.com/Pinchie_Bot" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-primary transition-colors"
+              aria-label="Follow on Twitter"
+              title="Follow @Pinchie_Bot on Twitter"
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+              </svg>
+            </a>
+          </div>
         </div>
 
         {user && (
